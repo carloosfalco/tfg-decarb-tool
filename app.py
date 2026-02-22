@@ -1,3 +1,4 @@
+﻿
 # app.py
 # Industrial Decarbonization Decision Tool (TFG prototype) — with:
 # 1) Two modes: (A) Auto-propose initiatives from company inputs, (B) Upload client CSV
@@ -11,15 +12,22 @@
 from __future__ import annotations
 
 import io
+import json
 import math
 from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import requests
 import streamlit as st
 
 import pulp
+
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None
 
 
 # -----------------------------
@@ -27,7 +35,7 @@ import pulp
 # -----------------------------
 st.set_page_config(
     page_title="Industrial Decarbonization Decision Tool",
-    page_icon="🌿",
+    page_icon="",
     layout="wide",
 )
 
@@ -608,6 +616,102 @@ def template_csv_bytes() -> bytes:
     return example.to_csv(index=False).encode("utf-8")
 
 
+def df_for_ai(df: pd.DataFrame, limit: int = 25) -> List[dict]:
+    if df is None or df.empty:
+        return []
+    cols = [
+        "id",
+        "initiative_family",
+        "initiative",
+        "selected",
+        "capex_eur",
+        "annual_opex_saving_eur",
+        "annual_co2_reduction_t",
+        "npv_penalized_eur",
+        "payback_years",
+        "confidence",
+        "data_dependency",
+    ]
+    cols = [c for c in cols if c in df.columns]
+    sample = df[cols].head(limit).copy()
+    sample = sample.replace([np.inf, -np.inf], np.nan).where(pd.notna(sample), None)
+    return sample.to_dict(orient="records")
+
+
+def generate_ai_brief(
+    provider: str,
+    api_key: str,
+    model: str,
+    mode: str,
+    summary: dict,
+    df_all: pd.DataFrame,
+    df_selected: pd.DataFrame,
+    pestel: Dict[str, List[str]] | None,
+    extra_prompt: str,
+) -> str:
+    if not api_key:
+        raise RuntimeError(f"Missing {provider} API key.")
+
+    context = {
+        "mode": mode,
+        "optimization_summary": summary,
+        "selected_count": int(df_selected.shape[0]) if df_selected is not None else 0,
+        "all_initiatives_preview": df_for_ai(df_all, limit=25),
+        "selected_initiatives_preview": df_for_ai(df_selected, limit=25),
+        "pestel": pestel or {},
+    }
+
+    system_prompt = (
+        "You are an industrial decarbonization consultant. "
+        "Provide concise, practical recommendations grounded only in the provided data. "
+        "Do not invent numeric facts. If data gaps exist, call them out explicitly."
+    )
+    user_prompt = (
+        "Create an executive brief in Spanish with:\n"
+        "1) portfolio diagnosis,\n"
+        "2) top 3 actions for next 90 days,\n"
+        "3) main risks/data gaps,\n"
+        "4) 3 scenario sensitivities to test.\n\n"
+        f"Additional user instruction: {extra_prompt or 'None'}\n\n"
+        f"DATA:\n{json.dumps(context, ensure_ascii=False)}"
+    )
+
+    provider_norm = (provider or "").strip().lower()
+    if provider_norm == "openai":
+        if OpenAI is None:
+            raise RuntimeError("OpenAI package not installed. Add 'openai' to requirements and install dependencies.")
+        client = OpenAI(api_key=api_key)
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        return (resp.choices[0].message.content or "").strip()
+
+    if provider_norm == "gemini":
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+        payload = {
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "contents": [{"parts": [{"text": user_prompt}]}],
+        }
+        r = requests.post(url, json=payload, timeout=60)
+        if r.status_code >= 400:
+            raise RuntimeError(f"Gemini API error ({r.status_code}): {r.text[:400]}")
+        data = r.json()
+        candidates = data.get("candidates", [])
+        if not candidates:
+            raise RuntimeError("Gemini returned no candidates.")
+        parts = candidates[0].get("content", {}).get("parts", [])
+        text = "".join([str(p.get("text", "")) for p in parts]).strip()
+        if not text:
+            raise RuntimeError("Gemini returned empty text.")
+        return text
+
+    raise RuntimeError(f"Unsupported provider: {provider}")
+
+
 # -----------------------------
 # UI
 # -----------------------------
@@ -664,12 +768,29 @@ with st.sidebar:
         use_container_width=True,
     )
 
+    st.divider()
+    st.header("AI Copilot (optional)")
+    ai_enabled = st.checkbox("Enable AI assistant", value=False)
+    ai_provider = st.selectbox("Provider", ["OpenAI", "Gemini"], index=0)
+    default_api_key = ""
+    try:
+        if ai_provider == "Gemini":
+            default_api_key = st.secrets.get("GEMINI_API_KEY", "")
+        else:
+            default_api_key = st.secrets.get("OPENAI_API_KEY", "")
+    except Exception:
+        default_api_key = ""
+    ai_api_key = st.text_input(f"{ai_provider} API key", value=default_api_key, type="password")
+    ai_model_default = "gpt-4o-mini" if ai_provider == "OpenAI" else "gemini-1.5-flash"
+    ai_model = st.text_input("Model", value=ai_model_default)
+
 
 # -----------------------------
 # Data source selection
 # -----------------------------
 df_base = None
 company_inputs: Dict = {}
+pestel: Dict[str, List[str]] = {}
 
 if mode.startswith("A"):
     st.markdown("### 1) Company & sector inputs (to propose initiatives)")
@@ -886,29 +1007,49 @@ fig2.update_layout(xaxis_tickangle=-30)
 st.plotly_chart(fig2, use_container_width=True)
 
 # -----------------------------
+# AI Copilot
+# -----------------------------
+st.markdown("### 8) AI copilot")
+ai_extra_prompt = st.text_area(
+    "Optional instruction for AI (e.g., focus on cash flow, regulatory risk, or operations):",
+    value="Prioriza recomendaciones accionables y con bajo riesgo de implementación.",
+)
+if st.button("Generate AI executive brief", use_container_width=True):
+    if not ai_enabled:
+        st.warning("Enable AI assistant in the sidebar first.")
+    else:
+        try:
+            with st.spinner("Generating AI brief..."):
+                ai_text = generate_ai_brief(
+                    provider=ai_provider,
+                    api_key=ai_api_key.strip(),
+                    model=ai_model.strip(),
+                    mode=mode,
+                    summary=summary,
+                    df_all=df_opt,
+                    df_selected=selected_df,
+                    pestel=pestel,
+                    extra_prompt=ai_extra_prompt.strip(),
+                )
+            st.success("AI brief generated.")
+            st.markdown(ai_text if ai_text else "_No content returned by model._")
+        except Exception as e:
+            st.error(f"AI generation failed: {e}")
+
+# -----------------------------
+# -----------------------------
 # Export
 # -----------------------------
-st.markdown("### 8) Export results")
+st.markdown("### 9) Export results")
 export_cols = [
-    "id",
-    "initiative_family",
-    "initiative",
-    "data_dependency",
-    "selected",
     "capex_eur",
     "annual_opex_saving_eur",
     "annual_co2_reduction_t",
     "co2_value_eur_per_year",
-    "total_annual_benefit_eur",
-    "confidence",
-    "npv_eur",
-    "npv_penalized_eur",
-    "payback_years",
     "implementation_months",
     "strategic_score_1_5",
     "required_info",
     "provided_info",
-    "notes",
 ]
 export_cols = [c for c in export_cols if c in df_opt.columns]
 export = df_opt[export_cols].copy()
@@ -918,7 +1059,4 @@ st.download_button(
     data=export.to_csv(index=False).encode("utf-8"),
     file_name="portfolio_results.csv",
     mime="text/csv",
-    use_container_width=True,
 )
-
-st.success("Ready ✅ Cambia inputs / edita iniciativas / re-subir CSV y se recalcula automáticamente.")
