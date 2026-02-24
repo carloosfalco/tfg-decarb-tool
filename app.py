@@ -1106,11 +1106,7 @@ st.caption("Prototipo TFG – Carlos Falcó")
 
 with st.sidebar:
     st.header("Modo")
-    mode = st.radio(
-        "Elige flujo de trabajo",
-        ["A) Proponer iniciativas desde inputs de empresa", "B) Subir CSV de iniciativas del cliente"],
-        index=0,
-    )
+    mode = "A"
 
     st.divider()
     st.header("Supuestos financieros")
@@ -1406,33 +1402,7 @@ if mode.startswith("A"):
     )
 
 else:
-    st.markdown("### 1) Subir CSV de iniciativas")
-    uploaded = st.file_uploader("Subir CSV", type=["csv"])
-
-    if uploaded is None:
-        st.info("Sube un CSV (puedes usar la plantilla).")
-        st.stop()
-
-    try:
-        df_raw = safe_read_csv(uploaded)
-        df_raw = normalize_columns(df_raw)
-        df_raw = coerce_numeric(df_raw)
-    except Exception as e:
-        st.error(f"No se pudo leer el CSV: {e}")
-        st.stop()
-
-    ok, errors = validate_schema(df_raw)
-    if not ok:
-        st.error("La validación del CSV falló:")
-        for err in errors:
-            st.write(f"- {err}")
-        st.stop()
-
-    for c in OPTIONAL_COLUMNS:
-        if c not in df_raw.columns:
-            df_raw[c] = ""
-
-    df_base = df_raw
+    st.stop()
 
 # Ensure required cols exist
 for c in REQUIRED_COLUMNS:
