@@ -39,7 +39,7 @@ except Exception:
 # Page config
 # -----------------------------
 st.set_page_config(
-    page_title="Herramienta de Decarbonización Industrial",
+    page_title="Herramienta de Descarbonización Industrial",
     page_icon="",
     layout="wide",
 )
@@ -1101,11 +1101,13 @@ def generate_ai_initiatives(
 # -----------------------------
 # UI
 # -----------------------------
-st.title("Herramienta de Decarbonización Industrial")
-st.caption("Prototipo TFG – Carlos Falcó")
+st.title("Herramienta de Descarbonización Industrial")
 
 with st.sidebar:
-    st.header("Modo")
+    st.markdown("**TFG**")
+    st.caption("Carlos Falcó Caravajal")
+    st.caption("IGE EDEM")
+    st.caption("Enterprise Risk Deloitte")
     mode = "A"
 
     st.divider()
@@ -1193,7 +1195,7 @@ df_base = None
 company_inputs: Dict = {}
 pestel: Dict[str, List[str]] = {}
 
-if mode.startswith("A"):
+if mode == "A":
     st.markdown("### 1) Inputs para huella de carbono y plan de mejora (MITECO)")
     c1, c2, c3 = st.columns(3)
 
@@ -1561,13 +1563,13 @@ if st.button("Generar informe ejecutivo IA", use_container_width=True):
                 api_key=ai_api_key.strip(),
                 model=ai_model.strip(),
                 mode=mode,
-                company_inputs=company_inputs if mode.startswith("A") else {},
+                company_inputs=company_inputs,
                 assumptions=assumptions,
                 constraints=constraints,
                 summary=summary,
                 df_all=df_opt,
                 df_selected=selected_df,
-                pestel=pestel if mode.startswith("A") else {},
+                pestel=pestel,
                 extra_prompt=ai_extra_prompt.strip(),
             )
         st.success("Informe IA generado.")
