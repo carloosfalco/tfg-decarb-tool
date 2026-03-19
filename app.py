@@ -86,6 +86,106 @@ NUMERIC_COLUMNS = [
     "confidence_0_1",
 ]
 
+# -----------------------------
+# Methodology constants (placeholders; update with official sources)
+# -----------------------------
+# NOTE: These values are aligned to official sources where available.
+# Update with official factors from MITECO/CNMC/REE and F-gas regulation when new years are published.
+
+CNMC_ELECTRICITY_FACTORS = {
+    # Supplier Remaining Mix (tCO2/MWh) — CNMC published electricity mix (gCO2/kWh converted to tCO2/MWh)
+    "supplier_remaining_mix_t_per_mwh": {
+        2020: 0.250,
+        2021: 0.259,
+        2022: 0.273,
+        2023: 0.260,
+        2024: 0.283,
+    },
+    # Generic supplier factor when no specific supplier data available
+    "generic_supplier_t_per_mwh": {
+        2024: 0.283,
+    },
+    # GdO cogeneration factor (kg CO2e/kWh -> tCO2/MWh) from MITECO calculator instructions
+    "gdo_cogen_t_per_mwh": {
+        2024: 0.302,
+    },
+}
+
+REE_LOCATION_BASED_FACTORS = {
+    # REE system average (tCO2/MWh). Update with REE official location-based factors.
+    "Peninsular": {
+        2020: 0.250,
+        2021: 0.259,
+        2022: 0.273,
+        2023: 0.260,
+        2024: 0.283,
+    },
+    "No peninsular": {
+        # Placeholder until official factors are available
+    },
+}
+
+STATIONARY_FUEL_FACTORS_BY_KWH = {
+    # tCO2 per kWh derived from MITECO NIR emission factors (t/TJ) -> t/MWh -> t/kWh
+    "gas_natural": 0.00020196,
+    "gasoleo": 0.00026676,
+    "fueloil": 0.00028066,
+    "glp": 0.00023040,
+    "biomasa": 0.0,
+}
+
+STATIONARY_FUEL_FACTORS_BY_LITER = {
+    # tCO2 per liter (approx). Update with MITECO official emission factors.
+    "gasoleo": 0.00264,
+    "fueloil": 0.00297,
+    "glp": 0.00152,
+}
+
+FUEL_CONVERSION_KWH_PER_L = {
+    # Approx kWh per liter. Used when only kWh factor exists.
+    "gasoleo": 9.9,
+    "fueloil": 10.6,
+    "glp": 6.6,
+    "gasolina": 8.6,
+    "diesel": 9.9,
+    "gasoline": 8.6,
+}
+
+MOBILE_FUEL_FACTORS_T_PER_L = {
+    "car": {
+        "diesel": 0.00264,
+        "gasoline": 0.00231,
+        "glp": 0.00152,
+    },
+    "truck": {
+        "diesel": 0.00264,
+        "gasoline": 0.00231,
+        "glp": 0.00152,
+    },
+}
+
+ADBLUE_FACTOR_T_PER_L = 0.0000005  # Placeholder; update if you choose to include AdBlue impact
+
+REFRIGERANTS_CATALOG = [
+    {"name": "R-410A", "gwp": 2088, "category": "HFC", "note": ""},
+    {"name": "R-134a", "gwp": 1430, "category": "HFC", "note": ""},
+    {"name": "R-404A", "gwp": 3922, "category": "HFC", "note": ""},
+    {"name": "R-407C", "gwp": 1774, "category": "HFC", "note": ""},
+    {"name": "R-32", "gwp": 675, "category": "HFC", "note": ""},
+    {"name": "R-507A", "gwp": 3985, "category": "HFC", "note": ""},
+    {"name": "R-417A", "gwp": 2346, "category": "HFC", "note": ""},
+    {"name": "R-422D", "gwp": 2729, "category": "HFC", "note": ""},
+    {"name": "R-448A", "gwp": 1387, "category": "HFO/HFC blend", "note": ""},
+    {"name": "R-449A", "gwp": 1397, "category": "HFO/HFC blend", "note": ""},
+    {"name": "R-452A", "gwp": 2141, "category": "HFO/HFC blend", "note": ""},
+    {"name": "R-1234yf", "gwp": 4, "category": "HFO", "note": ""},
+    {"name": "R-1234ze", "gwp": 7, "category": "HFO", "note": ""},
+    {"name": "R-290", "gwp": 3, "category": "HC", "note": "Propano"},
+    {"name": "R-600a", "gwp": 3, "category": "HC", "note": "Isobutano"},
+    {"name": "R-717", "gwp": 0, "category": "NH3", "note": "Amoniaco"},
+    {"name": "R-744", "gwp": 1, "category": "CO2", "note": "Dióxido de carbono"},
+]
+
 
 # -----------------------------
 # Utility helpers
@@ -119,6 +219,181 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df.columns = [str(c).strip().lower() for c in df.columns]
     return df
+
+# -----------------------------
+# Home page
+# -----------------------------
+def render_global_styles() -> None:
+    st.markdown(
+        """
+        <style>
+        .block-container { padding-top: 2.2rem; padding-bottom: 3rem; }
+        .hero-panel {
+            padding: 2.4rem 2.2rem;
+            border: 1px solid rgba(15, 23, 42, 0.10);
+            border-radius: 20px;
+            background: linear-gradient(135deg, #f7faf8 0%, #eef5f1 100%);
+            margin-bottom: 1.4rem;
+        }
+        .eyebrow {
+            display: inline-block;
+            padding: 0.28rem 0.7rem;
+            border-radius: 999px;
+            background: #e6f0ea;
+            color: #274c3c;
+            font-size: 0.82rem;
+            font-weight: 600;
+            margin-bottom: 0.9rem;
+        }
+        .hero-title {
+            font-size: 2.35rem;
+            line-height: 1.1;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 0.8rem;
+        }
+        .hero-subtitle { font-size: 1.1rem; color: #1f2937; margin-bottom: 0.8rem; }
+        .hero-text { font-size: 1rem; color: #475569; max-width: 900px; }
+        .section-card, .method-card, .step-card, .mini-card {
+            border-radius: 16px;
+            border: 1px solid rgba(15, 23, 42, 0.10);
+            background: #ffffff;
+            box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
+        }
+        .section-card { padding: 1.1rem 1rem; min-height: 180px; }
+        .mini-card {
+            padding: 1rem 0.95rem;
+            min-height: 160px;
+            background: #f8fbf9;
+            border-left: 4px solid #436850;
+        }
+        .method-card { padding: 1rem; min-height: 175px; background: #fcfdfc; }
+        .step-card { padding: 1rem; min-height: 150px; background: #f7f9fb; }
+        .step-number {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 999px;
+            background: #1f4d3a;
+            color: white;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            margin-bottom: 0.7rem;
+        }
+        .cta-panel {
+            padding: 1.8rem;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #eef5f1 0%, #f8fafc 100%);
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            margin-top: 1rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_home_page() -> None:
+    render_global_styles()
+
+    st.markdown(
+        """
+        <div class="hero-panel">
+            <div class="eyebrow">TFG · Descarbonización industrial</div>
+            <div class="hero-title">Herramienta de apoyo para la descarbonización industrial</div>
+            <div class="hero-subtitle">
+                Calcula la huella de carbono de Alcance 1 y 2, genera contexto estratégico y prioriza iniciativas de reducción con criterios técnicos y financieros.
+            </div>
+            <div class="hero-text">
+                Esta herramienta ha sido desarrollada como prototipo de TFG para ayudar a empresas industriales a estructurar su plan de descarbonización de forma trazable, comprensible y accionable.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("### Qué ofrece esta herramienta")
+    benefit_cols = st.columns(4)
+    benefits = [
+        ("Trazabilidad del cálculo", "Integra una lógica explícita para cuantificar emisiones energéticas y documentar supuestos de cálculo."),
+        ("Priorización de iniciativas", "Ordena opciones de reducción según impacto ambiental, viabilidad económica y criterios de decisión."),
+        ("Apoyo a inversión", "Conecta la huella con CAPEX, ahorro operativo, NPV y restricciones presupuestarias."),
+        ("Visión para roadmap", "Permite construir una primera base de trabajo para un plan de descarbonización industrial."),
+    ]
+    for col, (title, text) in zip(benefit_cols, benefits):
+        with col:
+            st.markdown(f'<div class="mini-card"><strong>{title}</strong><p>{text}</p></div>', unsafe_allow_html=True)
+
+    st.markdown("### ¿Por qué necesita una empresa un plan de descarbonización?")
+    reason_cols = st.columns(4)
+    reasons = [
+        ("Cumplimiento y reporting", "La presión regulatoria y los requerimientos de reporte avanzan hacia una mayor exigencia de medición, trazabilidad y seguimiento."),
+        ("Competitividad y costes", "La energía y el carbono afectan al margen industrial. Medir permite identificar oportunidades de ahorro y reducción de exposición."),
+        ("Cadena de suministro y reputación", "Clientes, financiadores y grupos de interés exigen mayor transparencia climática y capacidad de respuesta."),
+        ("Priorización de inversiones", "Un plan ordenado ayuda a comparar medidas y secuenciar decisiones con un criterio técnico, económico y operativo."),
+    ]
+    for col, (title, text) in zip(reason_cols, reasons):
+        with col:
+            st.markdown(f'<div class="section-card"><h4>{title}</h4><p>{text}</p></div>', unsafe_allow_html=True)
+
+    st.markdown("### ¿Qué significan los Alcances 1, 2 y 3?")
+    scope_cols = st.columns(3)
+    scopes = [
+        ("Alcance 1", "Emisiones directas generadas por fuentes que controla la empresa.", "Combustibles en planta, flota propia y fugas de refrigerantes."),
+        ("Alcance 2", "Emisiones indirectas asociadas a la energía comprada y consumida por la organización.", "Electricidad adquirida y calor o vapor comprados."),
+        ("Alcance 3", "Resto de emisiones indirectas a lo largo de la cadena de valor.", "Compras, transporte, viajes, residuos, uso de producto o fin de vida."),
+    ]
+    for col, (title, desc, examples) in zip(scope_cols, scopes):
+        with col:
+            st.markdown(
+                f'<div class="section-card"><h4>{title}</h4><p>{desc}</p><p style="margin-top:0.7rem;"><strong>Ejemplos:</strong> {examples}</p></div>',
+                unsafe_allow_html=True,
+            )
+    st.info("Esta versión de la herramienta calcula Alcance 1 y 2. El Alcance 3 se incorpora a nivel conceptual, pero no se estima automáticamente en esta versión.")
+
+    st.markdown("### Fuentes metodológicas y factores de emisión")
+    source_cols = st.columns(4)
+    sources = [
+        ("Alcance 1", "Factores y metodología alineados con MITECO y con referencias regulatorias españolas aplicables a combustibles y cálculo de inventarios."),
+        ("Electricidad market-based", "Uso de información de comercializadora, GdO, etiquetado o supplier mix con enfoque alineado con CNMC."),
+        ("Electricidad location-based", "Factor medio del sistema eléctrico de referencia, alineado con el enfoque de REE."),
+        ("Refrigerantes", "Potenciales de calentamiento global basados en referencias regulatorias de gases fluorados y catálogos GWP/PCA aplicables."),
+    ]
+    for col, (title, text) in zip(source_cols, sources):
+        with col:
+            st.markdown(f'<div class="method-card"><strong>{title}</strong><p style="margin-top:0.55rem; color:#475569;">{text}</p></div>', unsafe_allow_html=True)
+
+    st.markdown("### ¿Cómo funciona la herramienta?")
+    steps = [
+        ("1", "Introducción de datos", "Se recogen datos básicos de la empresa, consumos energéticos, flota, refrigerantes y condicionantes operativos."),
+        ("2", "Cálculo de huella", "La herramienta estima la huella de carbono de Alcance 1 y 2 a partir de factores de emisión y supuestos explícitos."),
+        ("3", "Contexto PESTEL", "De forma opcional, se genera un contexto estratégico con IA para situar riesgos, impulsores y condicionantes externos."),
+        ("4", "Iniciativas", "Se proponen medidas de descarbonización editables antes de pasar a la evaluación económica y ambiental."),
+        ("5", "Evaluación", "Cada iniciativa se analiza en términos de reducción de CO2, ahorro, CAPEX, payback y valor financiero."),
+        ("6", "Optimización y exportación", "Se construye un portafolio priorizado según presupuesto y objetivo, con visuales y descarga de resultados."),
+    ]
+    for col, (num, title, text) in zip(st.columns(3) + st.columns(3), steps):
+        with col:
+            st.markdown(
+                f'<div class="step-card"><div class="step-number">{num}</div><strong>{title}</strong><p style="margin-top:0.55rem; color:#475569;">{text}</p></div>',
+                unsafe_allow_html=True,
+            )
+
+    st.markdown(
+        """
+        <div class="cta-panel">
+            <strong>Acceso al módulo operativo</strong>
+            <p style="margin-top:0.6rem; color:#475569;">
+                Cuando quieras, puedes pasar al módulo de cálculo para estimar tu huella y construir un primer plan de descarbonización.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button("Empezar cálculo de huella", type="primary", use_container_width=True):
+        st.session_state["current_page"] = "tool"
+        st.rerun()
 
 
 def coerce_numeric(df: pd.DataFrame) -> pd.DataFrame:
@@ -226,63 +501,278 @@ def _to_float_or_zero(value) -> float:
         return 0.0
 
 
-def calculate_company_footprint(company: Dict) -> Dict[str, float | str | bool]:
-    # Factores por defecto (aprox.) para permitir una estimación inicial.
-    fuel_factors_t_per_mwh = {
-        "fuel_ng_mwh": 0.202,
-        "fuel_diesel_mwh": 0.267,
-        "fuel_fuel_oil_mwh": 0.279,
-        "fuel_lpg_mwh": 0.227,
-        "fuel_biomass_mwh": 0.0,
-    }
-    fleet_factors_t_per_l = {
-        "fleet_diesel_l": 0.00268,
-        "fleet_gasoline_l": 0.00231,
-    }
-    refrigerant_gwp = {
-        "R-410A": 2088.0,
-        "R-134A": 1430.0,
-        "R-407C": 1774.0,
-        "R-32": 675.0,
-        "R-404A": 3922.0,
-        "R-507A": 3985.0,
-    }
+def _latest_factor(factors_by_year: Dict[int, float], year: int) -> Tuple[float, int]:
+    if not factors_by_year:
+        return 0.0, year
+    if year in factors_by_year:
+        return float(factors_by_year[year]), year
+    latest_year = max(factors_by_year.keys())
+    return float(factors_by_year[latest_year]), latest_year
 
-    stationary_fuel_mwh = sum(_to_float_or_zero(company.get(k)) for k in fuel_factors_t_per_mwh.keys())
-    provided_fuel_factor = _to_float_or_zero(company.get("co2_factor_fuel_t_per_mwh"))
-    if provided_fuel_factor > 0:
-        scope1_stationary_t = stationary_fuel_mwh * provided_fuel_factor
-        scope1_factor_source = "factor de combustibles aportado por la empresa"
-    else:
-        scope1_stationary_t = sum(
-            _to_float_or_zero(company.get(k)) * fuel_factors_t_per_mwh[k]
-            for k in fuel_factors_t_per_mwh.keys()
-        )
-        scope1_factor_source = "factores por defecto por tipo de combustible"
 
-    scope1_fleet_t = sum(
-        _to_float_or_zero(company.get(k)) * fleet_factors_t_per_l[k]
-        for k in fleet_factors_t_per_l.keys()
-    )
+def get_market_based_electricity_factor(
+    year: int,
+    supplier_factor_t_per_mwh: float | None,
+    supplier_known: bool,
+) -> Tuple[float, str]:
+    if supplier_factor_t_per_mwh and supplier_factor_t_per_mwh > 0:
+        return float(supplier_factor_t_per_mwh), "comercializadora (factor aportado)"
 
-    refrigerant_kg = _to_float_or_zero(company.get("refrigerant_kg"))
-    refrigerant_type = str(company.get("refrigerant_type") or "").strip().upper().replace(" ", "")
-    refrigerant_key = refrigerant_type if refrigerant_type.startswith("R-") else f"R-{refrigerant_type[1:]}" if refrigerant_type.startswith("R") else refrigerant_type
-    fugitive_gwp = refrigerant_gwp.get(refrigerant_key, 0.0)
-    scope1_fugitive_t = (refrigerant_kg * fugitive_gwp / 1000.0) if fugitive_gwp > 0 else 0.0
+    if supplier_known:
+        f, y = _latest_factor(CNMC_ELECTRICITY_FACTORS.get("supplier_remaining_mix_t_per_mwh", {}), year)
+        if f > 0:
+            suffix = " (fallback año disponible)" if y != year else ""
+            return f, f"Supplier Remaining Mix CNMC ({y}){suffix}"
 
+    f, y = _latest_factor(CNMC_ELECTRICITY_FACTORS.get("generic_supplier_t_per_mwh", {}), year)
+    suffix = " (fallback año disponible)" if y != year else ""
+    return f, f"fallback interno (mix genérico {y}){suffix}"
+
+
+def get_location_based_electricity_factor(
+    year: int,
+    system: str,
+) -> Tuple[float, str]:
+    system_key = system if system in REE_LOCATION_BASED_FACTORS else "Peninsular"
+    factors = REE_LOCATION_BASED_FACTORS.get(system_key, {})
+    if not factors:
+        system_key = "Peninsular"
+        factors = REE_LOCATION_BASED_FACTORS.get(system_key, {})
+        f, y = _latest_factor(factors, year)
+        suffix = " (fallback sistema Peninsular)" if system != "Peninsular" else ""
+        return f, f"REE location-based ({system_key}, {y}){suffix}"
+    f, y = _latest_factor(factors, year)
+    suffix = " (fallback año disponible)" if y != year else ""
+    return f, f"REE location-based ({system_key}, {y}){suffix}"
+
+
+def calculate_scope2_electricity(company: Dict) -> Dict[str, float | str]:
     elec_mwh = _to_float_or_zero(company.get("annual_electricity_mwh"))
+    year = int(company.get("inventory_year") or 2024)
+    method = (company.get("electricity_method") or "market").lower()
+
+    if elec_mwh <= 0:
+        return {
+            "emissions_t": 0.0,
+            "used_factor": 0.0,
+            "source": "sin consumo eléctrico",
+            "method": method,
+        }
+
+    elec_kwh = elec_mwh * 1000.0
+
+    if method == "location":
+        system = company.get("location_system") or "Peninsular"
+        factor, source = get_location_based_electricity_factor(year, system)
+        emissions_t = elec_mwh * factor
+        return {
+            "emissions_t": emissions_t,
+            "used_factor": factor,
+            "source": source,
+            "method": "location-based",
+        }
+
+    # Market-based (default)
+    supplier_factor = _to_float_or_zero(company.get("supplier_factor_t_per_mwh"))
+    supplier_known = bool(company.get("cnmc_supplier_known"))
+    base_factor, base_source = get_market_based_electricity_factor(year, supplier_factor, supplier_known)
+
+    has_gdo = bool(company.get("electricity_has_gdo"))
+    gdo_type = company.get("electricity_gdo_type") or ""
+    gdo_type = gdo_type.lower() if isinstance(gdo_type, str) else ""
+
+    gdo_coverage_kwh = _to_float_or_zero(company.get("gdo_coverage_kwh"))
+    gdo_coverage_pct = _to_float_or_zero(company.get("gdo_coverage_pct"))
+    coverage_kwh = min(elec_kwh, gdo_coverage_kwh)
+    if coverage_kwh <= 0 and gdo_coverage_pct > 0:
+        coverage_kwh = min(elec_kwh, elec_kwh * gdo_coverage_pct / 100.0)
+
+    if not has_gdo or coverage_kwh <= 0:
+        emissions_t = elec_mwh * base_factor
+        return {
+            "emissions_t": emissions_t,
+            "used_factor": base_factor,
+            "source": base_source,
+            "method": "market-based (sin GdO)",
+        }
+
+    kwh_gdo = coverage_kwh
+    kwh_rest = max(0.0, elec_kwh - kwh_gdo)
+
+    if gdo_type == "cogen":
+        cogen_factor, y = _latest_factor(CNMC_ELECTRICITY_FACTORS.get("gdo_cogen_t_per_mwh", {}), year)
+        emissions_t = (kwh_gdo / 1000.0) * cogen_factor + (kwh_rest / 1000.0) * base_factor
+        eff_factor = emissions_t / elec_mwh
+        return {
+            "emissions_t": emissions_t,
+            "used_factor": eff_factor,
+            "source": f"GdO cogeneración ({y}) + {base_source}",
+            "method": "market-based (GdO cogeneración)",
+        }
+    if gdo_type == "renewable":
+        emissions_t = (kwh_rest / 1000.0) * base_factor
+        eff_factor = emissions_t / elec_mwh
+        return {
+            "emissions_t": emissions_t,
+            "used_factor": eff_factor,
+            "source": f"GdO renovable (0) + {base_source}",
+            "method": "market-based (GdO renovable)",
+        }
+
+    emissions_t = elec_mwh * base_factor
+    return {
+        "emissions_t": emissions_t,
+        "used_factor": base_factor,
+        "source": f"GdO sin tipo definido -> {base_source}",
+        "method": "market-based (GdO sin tipo)",
+    }
+
+
+def calculate_scope2_heat(company: Dict) -> Dict[str, float | str]:
     heat_mwh = _to_float_or_zero(company.get("annual_purchased_heat_mwh"))
-    elec_factor = _to_float_or_zero(company.get("co2_factor_elec_t_per_mwh"))
     heat_factor = _to_float_or_zero(company.get("co2_factor_heat_t_per_mwh"))
-
-    used_elec_factor = elec_factor if elec_factor > 0 else 0.18
     used_heat_factor = heat_factor if heat_factor > 0 else 0.20
-    scope2_elec_t = elec_mwh * used_elec_factor
     scope2_heat_t = heat_mwh * used_heat_factor
+    source = "factor calor aportado por la empresa" if heat_factor > 0 else "fallback interno (calor/vapor)"
+    return {"emissions_t": scope2_heat_t, "used_factor": used_heat_factor, "source": source}
 
-    scope1_t = scope1_stationary_t + scope1_fleet_t + scope1_fugitive_t
-    scope2_t = scope2_elec_t + scope2_heat_t
+
+def convert_fuel_to_emissions(fuel_key: str, quantity: float, unit: str, by_kwh: Dict, by_liter: Dict) -> float:
+    unit_norm = (unit or "").lower()
+    if unit_norm in ["kwh", "mwh"]:
+        kwh = quantity * (1000.0 if unit_norm == "mwh" else 1.0)
+        factor = by_kwh.get(fuel_key, 0.0)
+        return kwh * factor
+    if unit_norm in ["l", "litros", "liters"]:
+        if fuel_key in by_liter:
+            return quantity * by_liter[fuel_key]
+        kwh_per_l = FUEL_CONVERSION_KWH_PER_L.get(fuel_key, 0.0)
+        factor = by_kwh.get(fuel_key, 0.0)
+        return quantity * kwh_per_l * factor
+    return 0.0
+
+
+def calculate_scope1_stationary(company: Dict) -> Dict[str, float | Dict[str, float] | str]:
+    fuels = ["gas_natural", "gasoleo", "fueloil", "glp", "biomasa"]
+    breakdown = {}
+    total = 0.0
+    for f in fuels:
+        qty = _to_float_or_zero(company.get(f"stationary_{f}_qty"))
+        unit = company.get(f"stationary_{f}_unit") or "kWh"
+        t = convert_fuel_to_emissions(f, qty, unit, STATIONARY_FUEL_FACTORS_BY_KWH, STATIONARY_FUEL_FACTORS_BY_LITER)
+        breakdown[f] = t
+        total += t
+    return {"emissions_t": total, "breakdown": breakdown, "source": "factores combustibles estacionarios"}
+
+
+def estimate_stationary_fuel_mwh(company: Dict) -> float:
+    fuels = ["gas_natural", "gasoleo", "fueloil", "glp", "biomasa"]
+    total_mwh = 0.0
+    for f in fuels:
+        qty = _to_float_or_zero(company.get(f"stationary_{f}_qty"))
+        unit = (company.get(f"stationary_{f}_unit") or "kWh").lower()
+        if unit == "mwh":
+            total_mwh += qty
+        elif unit == "kwh":
+            total_mwh += qty / 1000.0
+        elif unit in ["l", "litros", "liters"]:
+            kwh_per_l = FUEL_CONVERSION_KWH_PER_L.get(f, 0.0)
+            total_mwh += (qty * kwh_per_l) / 1000.0
+    return total_mwh
+
+
+def calculate_scope1_mobile(company: Dict) -> Dict[str, float | List[dict]]:
+    rows = company.get("fleet_table") or []
+    total = 0.0
+    details = []
+    for r in rows:
+        vehicle = (r.get("vehicle_type") or "car").lower()
+        fuel = (r.get("fuel") or "").lower()
+        qty = _to_float_or_zero(r.get("quantity"))
+        unit = (r.get("unit") or "L").lower()
+        adblue_l = _to_float_or_zero(r.get("adblue_liters"))
+
+        if fuel in ["electric", "eléctrico", "electrico"]:
+            t = 0.0
+            note = "eléctrico (Scope 2)"
+        else:
+            factors = MOBILE_FUEL_FACTORS_T_PER_L.get(vehicle, MOBILE_FUEL_FACTORS_T_PER_L["car"])
+            if unit in ["kwh", "mwh"]:
+                kwh = qty * (1000.0 if unit == "mwh" else 1.0)
+                kwh_per_l = FUEL_CONVERSION_KWH_PER_L.get(fuel, 0.0)
+                liters = kwh / kwh_per_l if kwh_per_l > 0 else 0.0
+                t = liters * factors.get(fuel, 0.0)
+            else:
+                t = qty * factors.get(fuel, 0.0)
+            note = ""
+
+        adblue_t = adblue_l * ADBLUE_FACTOR_T_PER_L if adblue_l > 0 else 0.0
+        total += t + adblue_t
+        details.append({"fuel": fuel, "vehicle": vehicle, "t": t, "adblue_t": adblue_t, "note": note})
+
+    return {"emissions_t": total, "details": details}
+
+
+def calculate_fugitive_emissions(company: Dict) -> Dict[str, float | str | bool]:
+    refrigerant = company.get("refrigerant_selected") or ""
+    refrigerant = str(refrigerant).strip()
+    refrigerant_kg = _to_float_or_zero(company.get("refrigerant_kg"))
+    custom_gwp = _to_float_or_zero(company.get("refrigerant_custom_gwp"))
+
+    catalog = {r["name"].upper(): r for r in REFRIGERANTS_CATALOG}
+    if refrigerant.upper() in catalog:
+        gwp = catalog[refrigerant.upper()]["gwp"]
+        source = "catálogo interno (actualizar con F-gases)"
+        found = True
+    elif refrigerant.lower().startswith("otro") or refrigerant == "":
+        gwp = custom_gwp
+        source = "manual (usuario)"
+        found = gwp > 0
+    else:
+        gwp = custom_gwp
+        source = "manual (usuario)"
+        found = gwp > 0
+
+    emissions_t = (refrigerant_kg * gwp / 1000.0) if gwp > 0 else 0.0
+    return {"emissions_t": emissions_t, "gwp": gwp, "source": source, "found": found}
+
+
+def get_data_quality_score(company: Dict, footprint_meta: Dict) -> Tuple[str, str]:
+    score = 0
+    if company.get("has_invoices"):
+        score += 2
+    if company.get("has_meters"):
+        score += 2
+    if company.get("has_submetering"):
+        score += 1
+    if company.get("cnmc_supplier_known"):
+        score += 1
+    if company.get("electricity_has_gdo"):
+        score += 1
+    if company.get("has_energy_audit"):
+        score += 2
+    if footprint_meta.get("used_elec_factor", 0) > 0:
+        score += 1
+
+    if score >= 7:
+        return "Alta", "Datos con alta trazabilidad (facturas/medición/auditoría)."
+    if score >= 4:
+        return "Media", "Datos razonables; mejorar trazabilidad con facturas y medición."
+    return "Baja", "Datos incompletos; incorporar facturas, factores oficiales y auditoría."
+
+
+def calculate_company_footprint(company: Dict) -> Dict[str, float | str | bool]:
+    # Scope 1
+    scope1_stationary = calculate_scope1_stationary(company)
+    scope1_mobile = calculate_scope1_mobile(company)
+    scope1_fugitive = calculate_fugitive_emissions(company)
+
+    # Scope 2
+    scope2_electricity = calculate_scope2_electricity(company)
+    scope2_heat = calculate_scope2_heat(company)
+
+    scope1_t = scope1_stationary["emissions_t"] + scope1_mobile["emissions_t"] + scope1_fugitive["emissions_t"]
+    scope2_t = scope2_electricity["emissions_t"] + scope2_heat["emissions_t"]
     total_t = scope1_t + scope2_t
 
     return {
@@ -290,16 +780,20 @@ def calculate_company_footprint(company: Dict) -> Dict[str, float | str | bool]:
         "scope2_t": scope2_t,
         "scope3_t": 0.0,
         "total_t": total_t,
-        "scope1_stationary_t": scope1_stationary_t,
-        "scope1_fleet_t": scope1_fleet_t,
-        "scope1_fugitive_t": scope1_fugitive_t,
-        "scope2_elec_t": scope2_elec_t,
-        "scope2_heat_t": scope2_heat_t,
-        "scope1_factor_source": scope1_factor_source,
-        "used_elec_factor": used_elec_factor,
-        "used_heat_factor": used_heat_factor,
-        "refrigerant_factor_found": fugitive_gwp > 0,
-        "refrigerant_key": refrigerant_key,
+        "scope1_stationary_t": scope1_stationary["emissions_t"],
+        "scope1_fleet_t": scope1_mobile["emissions_t"],
+        "scope1_fugitive_t": scope1_fugitive["emissions_t"],
+        "scope2_elec_t": scope2_electricity["emissions_t"],
+        "scope2_heat_t": scope2_heat["emissions_t"],
+        "scope1_factor_source": scope1_stationary["source"],
+        "used_elec_factor": scope2_electricity["used_factor"],
+        "used_heat_factor": scope2_heat["used_factor"],
+        "scope2_elec_source": scope2_electricity["source"],
+        "scope2_elec_method": scope2_electricity["method"],
+        "refrigerant_factor_found": scope1_fugitive["found"],
+        "refrigerant_key": company.get("refrigerant_selected") or "",
+        "refrigerant_gwp": scope1_fugitive["gwp"],
+        "refrigerant_source": scope1_fugitive["source"],
     }
 
 # -----------------------------
@@ -481,11 +975,21 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
     electricity_gdo_type = company.get("electricity_gdo_type")  # "renewable"/"cogen"/None
     cnmc_supplier_known = company.get("cnmc_supplier_known")  # True/False/None
 
+    implemented = company.get("implemented_measures") or {}
+
     def ok_num(x):
         return x is not None and not (isinstance(x, float) and np.isnan(x))
 
     initiatives: List[dict] = []
     next_id = 1
+
+    def _measure_status(label: str) -> str:
+        val = str(implemented.get(label, "No")).strip().lower()
+        if val in ["sí", "si", "yes", "implantada", "implantado"]:
+            return "yes"
+        if val in ["parcial", "partial"]:
+            return "partial"
+        return "no"
 
     def add_init(**kwargs):
         nonlocal next_id, initiatives
@@ -513,6 +1017,15 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
         initiatives.append(base)
         next_id += 1
 
+    def add_if_allowed(measure_label: str, **kwargs):
+        status = _measure_status(measure_label)
+        if status == "yes":
+            return
+        if status == "partial":
+            kwargs["initiative"] = f"Escalar: {kwargs.get('initiative', '')}"
+            kwargs["notes"] = (kwargs.get("notes", "") + " (Medida parcialmente implantada: enfocar en ampliación.)").strip()
+        add_init(**kwargs)
+
     # -----------------------------
     # Scope 2 — Electricity contracting / GdO / factor review
     # -----------------------------
@@ -531,7 +1044,8 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
         prv.append("electricity_gdo_type")
 
     # If GdO renewable, Scope2 can drop strongly; we keep "rough" placeholder reduction (50% of current) unless user fills.
-    add_init(
+    add_if_allowed(
+        "GdO",
         initiative_family="Electricity (Scope 2)",
         initiative="Electricity supply decarbonization (supplier factor review + GdO / PPA / contract change)",
         scope="Scope 2",
@@ -553,7 +1067,8 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
     )
 
     # EMS + MRV backbone
-    add_init(
+    add_if_allowed(
+        "EMS / submetering",
         initiative_family="Digital / EMS",
         initiative="Energy Management System (EMS) + submetering + analytics (MRV backbone)",
         scope="Scope 2",
@@ -571,8 +1086,28 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
         data_dependency="Medium",
     )
 
+    add_if_allowed(
+        "LED",
+        initiative_family="Electric efficiency",
+        initiative="LED lighting retrofit + controls",
+        scope="Scope 2",
+        emission_source="Purchased electricity (lighting)",
+        activity_unit="kWh (meters/invoices)",
+        mrv_method="Lighting inventory + kWh baseline vs after (submetering or invoices)",
+        capex_eur=60000,
+        annual_opex_saving_eur=(0.01 * annual_electricity_mwh * electricity_price) if (ok_num(annual_electricity_mwh) and ok_num(electricity_price)) else np.nan,
+        annual_co2_reduction_t=(0.01 * annual_electricity_mwh * (co2_factor_elec or 0.0)) if (ok_num(annual_electricity_mwh) and ok_num(co2_factor_elec)) else np.nan,
+        implementation_months=2,
+        strategic_score_1_5=3,
+        notes="Sustitución de luminarias y control de horarios/presencia.",
+        required_info="lighting_inventory;operating_hours;electricity_price_eur_mwh",
+        provided_info="",
+        data_dependency="Medium",
+    )
+
     # Motors + VFD
-    add_init(
+    add_if_allowed(
+        "Variadores de frecuencia",
         initiative_family="Electric efficiency",
         initiative="High-efficiency motors + VFD (targeted replacements)",
         scope="Scope 2",
@@ -592,7 +1127,8 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
 
     # Compressed air
     if has_compressed_air:
-        add_init(
+        add_if_allowed(
+            "Programa de fugas de aire comprimido",
             initiative_family="Utilities",
             initiative="Compressed air leak program + pressure optimization + controls",
             scope="Scope 2",
@@ -650,7 +1186,8 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
         saving_eur = np.nan
         co2_red = np.nan
 
-    add_init(
+    add_if_allowed(
+        "Paneles solares",
         initiative_family="Renewables",
         initiative="Solar PV self-consumption (feasibility-based sizing)",
         scope="Scope 2",
@@ -698,7 +1235,8 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
             data_dependency="Medium",
         )
 
-        add_init(
+        add_if_allowed(
+            "Recuperación de calor",
             initiative_family="Heat",
             initiative="Waste heat recovery / industrial heat pump (feasibility-based)",
             scope="Scope 1",
@@ -743,7 +1281,7 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
             initiative="Fleet efficiency program (eco-driving + maintenance + route optimization)",
             scope="Scope 1",
             emission_source="Fleet fuels",
-            activity_unit="liters fuel (invoices/cards) or km",
+            activity_unit="liters fuel (invoices/cards)",
             mrv_method="Fuel cards/invoices + mileage logs; baseline vs after",
             capex_eur=25000,
             annual_opex_saving_eur=np.nan,
@@ -751,7 +1289,26 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
             implementation_months=2,
             strategic_score_1_5=3,
             notes="Medida de bajo CAPEX; necesita datos de litros por tipo de combustible.",
-            required_info="fleet_fuel_liters_by_type;vehicle_km;fuel_emission_factors",
+            required_info="fleet_fuel_liters_by_type;fuel_emission_factors;fleet_inventory",
+            provided_info="",
+            data_dependency="High",
+        )
+
+        add_if_allowed(
+            "Flota eléctrica",
+            initiative_family="Fleet (Scope 1/2)",
+            initiative="Fleet electrification (phased replacement of vehicles)",
+            scope="Scope 1",
+            emission_source="Fleet fuels displacement (Scope 1) + electricity increase (Scope 2)",
+            activity_unit="liters fuel avoided + kWh electricity added",
+            mrv_method="Fleet inventory + fuel invoices + charging kWh logs",
+            capex_eur=300000,
+            annual_opex_saving_eur=np.nan,
+            annual_co2_reduction_t=np.nan,
+            implementation_months=12,
+            strategic_score_1_5=4,
+            notes="Depende de perfiles de ruta, autonomía y disponibilidad de infraestructura de recarga.",
+            required_info="fleet_inventory;fuel_invoices;charging_infrastructure;route_profiles",
             provided_info="",
             data_dependency="High",
         )
@@ -773,7 +1330,7 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
             implementation_months=6,
             strategic_score_1_5=4,
             notes="Requiere inventario de equipos y registros de recargas (kg) para cuantificar emisiones.",
-            required_info="refrigerant_type;kg_recharged_per_year;equipment_inventory;maintenance_logs",
+            required_info="refrigerant_selected;kg_recharged_per_year;equipment_inventory;maintenance_logs",
             provided_info="",
             data_dependency="High",
         )
@@ -1120,7 +1677,8 @@ def generate_ai_initiatives(
         "Genera exactamente N iniciativas en JSON (lista de objetos) siguiendo este esquema. "
         "Usa los inputs de la empresa y supuestos conservadores. "
         "Cada iniciativa debe incluir TODAS las columnas requeridas y opcionales. "
-        "Para 'scope' usa 'Alcance 1' o 'Alcance 2'.\n\n"
+        "Para 'scope' usa 'Alcance 1' o 'Alcance 2'. "
+        "No propongas iniciativas ya implantadas (salvo si se pide explícitamente ampliación cuando son parciales).\n\n"
         f"N = {n}\n"
         f"SCHEMA: {json.dumps(schema_note, ensure_ascii=False)}\n"
         f"COMPANY_INPUTS: {json.dumps(company_inputs, ensure_ascii=False)}\n"
@@ -1187,577 +1745,788 @@ def generate_ai_initiatives(
     if df.empty:
         raise RuntimeError("La IA devolvió una lista de iniciativas vacía.")
 
+    implemented = company_inputs.get("implemented_measures") or {}
+    def _status(label: str) -> str:
+        val = str(implemented.get(label, "No")).strip().lower()
+        if val in ["sí", "si", "yes"]:
+            return "yes"
+        if val in ["parcial", "partial"]:
+            return "partial"
+        return "no"
+
+    keyword_map = {
+        "LED": ["led", "iluminación led"],
+        "GdO": ["gdo", "garantía de origen"],
+        "Paneles solares": ["solar", "fotovoltaica", "pv"],
+        "Flota eléctrica": ["flota eléctrica", "electrificación", "vehículo eléctrico", "vehicle electr"],
+        "Variadores de frecuencia": ["variador", "vfd"],
+        "EMS / submetering": ["ems", "submetering", "gestión energética"],
+        "Recuperación de calor": ["recuperación de calor", "heat recovery"],
+        "Programa de fugas de aire comprimido": ["aire comprimido", "fugas"],
+    }
+
+    if "initiative" in df.columns:
+        updated_rows = []
+        for _, row in df.iterrows():
+            name = str(row.get("initiative", "")).lower()
+            blocked = False
+            for label, kws in keyword_map.items():
+                status = _status(label)
+                if status == "yes" and any(k in name for k in kws):
+                    blocked = True
+                    break
+                if status == "partial" and any(k in name for k in kws):
+                    row["initiative"] = f"Escalar: {row.get('initiative')}"
+                    row["notes"] = (str(row.get("notes", "")) + " (Medida parcialmente implantada: enfoque ampliación.)").strip()
+            if not blocked:
+                updated_rows.append(row)
+        df = pd.DataFrame(updated_rows).reset_index(drop=True)
+
     return df
 
 # -----------------------------
 # UI
 # -----------------------------
-st.title("Herramienta de Descarbonización Industrial")
-st.markdown(
-    "Plataforma para definir un plan de descarbonización empresarial: calcula huella de carbono (Alcance 1 y 2), "
-    "genera contexto PESTEL con IA y propone iniciativas priorizadas."
-)
+if "current_page" not in st.session_state:
+    st.session_state["current_page"] = "home"
 
-ctx_a, ctx_b = st.columns([1.3, 1.7])
-with ctx_a:
-    st.info(
-        "**Contexto regulatorio**\n\n"
-        "Las empresas están cada vez más obligadas a medir emisiones y presentar planes de reducción "
-        "con trazabilidad y seguimiento."
+if st.session_state["current_page"] == "home":
+    render_home_page()
+    st.stop()
+
+def render_tool_page() -> None:
+    st.title("Herramienta de Descarbonización Industrial")
+    st.markdown(
+        "Plataforma para definir un plan de descarbonización empresarial: calcula huella de carbono (Alcance 1 y 2), "
+        "genera contexto PESTEL con IA y propone iniciativas priorizadas."
     )
-with ctx_b:
-    with st.expander("Cómo funciona la herramienta", expanded=True):
-        st.markdown(
-            "1. Completa el cuestionario inicial (empresa + Alcance 1 + Alcance 2).\n"
-            "2. La app estima tu huella de carbono anual.\n"
-            "3. Puedes generar un PESTEL con IA para contexto estratégico.\n"
-            "4. Se generan iniciativas de descarbonización y puedes editarlas.\n"
-            "5. Se optimiza la cartera según presupuesto, CO₂ y NPV."
+    
+    ctx_a, ctx_b = st.columns([1.3, 1.7])
+    with ctx_a:
+        st.info(
+            "**Contexto regulatorio**\n\n"
+            "Las empresas están cada vez más obligadas a medir emisiones y presentar planes de reducción "
+            "con trazabilidad y seguimiento."
         )
-        st.caption(
-            "GHG Protocol: Alcance 1 (emisiones directas), Alcance 2 (electricidad/calor comprados), "
-            "Alcance 3 (cadena de valor, explicado pero no calculado automáticamente aquí)."
+    with ctx_b:
+        with st.expander("Cómo funciona la herramienta", expanded=True):
+            st.markdown(
+                "1. Completa el cuestionario inicial (empresa + Alcance 1 + Alcance 2).\n"
+                "2. La app estima tu huella de carbono anual.\n"
+                "3. Puedes generar un PESTEL con IA para contexto estratégico.\n"
+                "4. Se generan iniciativas de descarbonización y puedes editarlas.\n"
+                "5. Se optimiza la cartera según presupuesto, CO₂ y NPV."
+            )
+            st.caption(
+                "GHG Protocol: Alcance 1 (emisiones directas), Alcance 2 (electricidad/calor comprados), "
+                "Alcance 3 (cadena de valor, explicado pero no calculado automáticamente aquí)."
+            )
+    
+    with st.sidebar:
+        if st.button("Volver a inicio", use_container_width=True):
+            st.session_state["current_page"] = "home"
+            st.rerun()
+    
+        st.divider()
+        st.markdown("**TFG**")
+        st.caption("Carlos Falcó Caravajal")
+        st.caption("IGE EDEM")
+        st.caption("Enterprise Risk Deloitte")
+        mode = "A"
+    
+        st.divider()
+        st.header("Supuestos financieros")
+        horizon_years = st.slider("Horizonte del proyecto (años)", 1, 10, 5, 1)
+        discount_rate_pct = st.slider("Tasa de descuento (%)", 0.0, 25.0, 8.0, 0.25)
+        discount_rate = discount_rate_pct / 100.0
+        co2_price = st.number_input("Precio CO₂ (€/t)", min_value=0.0, value=80.0, step=5.0)
+    
+        st.divider()
+        st.header("Restricciones de optimización")
+        budget_eur = st.number_input("Presupuesto CAPEX (€)", min_value=0.0, value=10000.0, step=10000.0)
+        min_co2_t = st.number_input("Objetivo mínimo anual de CO₂ (t/año) [opcional]", min_value=0.0, value=0.0, step=10.0)
+    
+        confidence_floor = 1.0
+    
+        st.divider()
+        st.header("Objetivo")
+        st.write("Optimización ponderada: máxima reducción de CO₂ y máximo NPV total con el presupuesto.")
+        w_co2 = st.slider("Peso CO₂", 0.0, 1.0, 0.70, 0.05)
+        w_npv = st.slider("Peso NPV", 0.0, 1.0, 0.30, 0.05)
+        s = max(1e-9, w_npv + w_co2)
+        w_npv, w_co2 = w_npv / s, w_co2 / s
+        w_strategy = 0.0
+        objective = "Balanced score (NPV + CO2 + strategy)"
+    
+        st.divider()
+        st.header("Plantilla cliente")
+        st.download_button(
+            "Descargar plantilla CSV (ejemplo)",
+            data=template_csv_bytes(),
+            file_name="client_initiatives_template.csv",
+            mime="text/csv",
+            use_container_width=True,
         )
-
-with st.sidebar:
-    st.markdown("**TFG**")
-    st.caption("Carlos Falcó Caravajal")
-    st.caption("IGE EDEM")
-    st.caption("Enterprise Risk Deloitte")
-    mode = "A"
-
-    st.divider()
-    st.header("Supuestos financieros")
-    horizon_years = st.slider("Horizonte del proyecto (años)", 1, 10, 5, 1)
-    discount_rate_pct = st.slider("Tasa de descuento (%)", 0.0, 25.0, 8.0, 0.25)
-    discount_rate = discount_rate_pct / 100.0
-    co2_price = st.number_input("Precio CO₂ (€/t)", min_value=0.0, value=80.0, step=5.0)
-
-    st.divider()
-    st.header("Restricciones de optimización")
-    budget_eur = st.number_input("Presupuesto CAPEX (€)", min_value=0.0, value=10000.0, step=10000.0)
-    min_co2_t = st.number_input("Objetivo mínimo anual de CO₂ (t/año) [opcional]", min_value=0.0, value=0.0, step=10.0)
-
-    confidence_floor = 1.0
-
-    st.divider()
-    st.header("Objetivo")
-    st.write("Optimización ponderada: máxima reducción de CO₂ y máximo NPV total con el presupuesto.")
-    w_co2 = st.slider("Peso CO₂", 0.0, 1.0, 0.70, 0.05)
-    w_npv = st.slider("Peso NPV", 0.0, 1.0, 0.30, 0.05)
-    s = max(1e-9, w_npv + w_co2)
-    w_npv, w_co2 = w_npv / s, w_co2 / s
-    w_strategy = 0.0
-    objective = "Balanced score (NPV + CO2 + strategy)"
-
-    st.divider()
-    st.header("Plantilla cliente")
-    st.download_button(
-        "Descargar plantilla CSV (ejemplo)",
-        data=template_csv_bytes(),
-        file_name="client_initiatives_template.csv",
-        mime="text/csv",
-        use_container_width=True,
-    )
-
-    st.divider()
-    st.header("Copiloto IA")
-    ai_provider = "Gemini"
-    ai_api_key = ""
-    diag = {
-        "cwd": os.getcwd(),
-        "secrets_exists_rel": os.path.exists(".streamlit/secrets.toml"),
-        "from_st_secrets": "NO",
-        "from_env": "NO",
-        "from_file": "NO",
-        "file_parse_error": "",
-    }
-
-    try:
-        ai_api_key = st.secrets.get("GEMINI_API_KEY", "")
-        diag["from_st_secrets"] = "SÍ" if ai_api_key else "NO"
-    except Exception:
+    
+        st.divider()
+        st.header("Copiloto IA")
+        ai_provider = "Gemini"
         ai_api_key = ""
-
-    if not ai_api_key:
-        env_key = os.getenv("GEMINI_API_KEY", "") or ""
-        if env_key:
-            ai_api_key = env_key
-            diag["from_env"] = "SÍ"
-
-    if not ai_api_key and tomllib is not None:
+        diag = {
+            "cwd": os.getcwd(),
+            "secrets_exists_rel": os.path.exists(".streamlit/secrets.toml"),
+            "from_st_secrets": "NO",
+            "from_env": "NO",
+            "from_file": "NO",
+            "file_parse_error": "",
+        }
+    
         try:
-            path = ".streamlit/secrets.toml"
-            raw = ""
-            if os.path.exists(path):
-                raw = open(path, "rb").read().decode("utf-8-sig", errors="ignore")
-            if raw:
-                data = tomllib.loads(raw)
-                ai_api_key = data.get("GEMINI_API_KEY", "") or ""
-                if ai_api_key:
-                    diag["from_file"] = "SÍ"
-        except Exception as e:
-            diag["file_parse_error"] = str(e)[:120]
-
-    key_status = "SÍ" if ai_api_key else "NO"
-    st.caption(f"Clave Gemini cargada: {key_status}")
-    ai_model = "gemini-2.5-flash"
-
-
-# -----------------------------
-# Data source selection
-# -----------------------------
-df_base = None
-company_inputs: Dict = {}
-pestel: Dict[str, List[str]] = {}
-
-if mode == "A":
-    st.markdown("### 1) Cuestionario inicial para calcular la huella")
-    st.caption("Completa los subapartados para obtener una estimación anual de huella en tCO₂e.")
-    tab_company, tab_scope1, tab_scope2 = st.tabs(["Sobre la empresa", "Alcance 1", "Alcance 2"])
-
-    with tab_company:
-        c1, c2 = st.columns(2)
-        with c1:
-            company_inputs["company_name"] = st.text_input("Nombre de la organización (opcional)", value="")
-            company_inputs["cnae_sector"] = st.text_input("CNAE / Sector", value="")
-            company_inputs["country_region"] = st.text_input("País / Comunidad / Provincia", value="España")
-            company_inputs["inventory_year"] = st.number_input("Año de inventario (cálculo)", min_value=2000, max_value=2100, value=2024, step=1)
-            company_inputs["sector"] = company_inputs["cnae_sector"]
-        with c2:
-            st.markdown("**Evidencias y datos disponibles**")
-            company_inputs["has_invoices"] = st.checkbox("Facturas/lecturas disponibles", value=True)
-            company_inputs["has_meters"] = st.checkbox("Contadores/medición disponibles", value=False)
-            company_inputs["has_submetering"] = st.checkbox("Submetering disponible", value=False)
-            company_inputs["fuel_price_eur_mwh"] = st.number_input("Precio combustible (€/MWh)", min_value=0.0, value=0.0, step=5.0)
-            company_inputs["electricity_price_eur_mwh"] = st.number_input("Precio electricidad (€/MWh)", min_value=0.0, value=0.0, step=5.0)
-
-    with tab_scope1:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("**Combustión fija**")
-            company_inputs["fuel_ng_mwh"] = st.number_input("Gas natural (MWh/año)", min_value=0.0, value=0.0, step=100.0)
-            company_inputs["fuel_diesel_mwh"] = st.number_input("Gasóleo (MWh/año)", min_value=0.0, value=0.0, step=100.0)
-            company_inputs["fuel_fuel_oil_mwh"] = st.number_input("Fuelóleo (MWh/año)", min_value=0.0, value=0.0, step=100.0)
-            company_inputs["fuel_lpg_mwh"] = st.number_input("GLP (MWh/año)", min_value=0.0, value=0.0, step=50.0)
-            company_inputs["fuel_biomass_mwh"] = st.number_input("Biomasa (MWh/año)", min_value=0.0, value=0.0, step=50.0)
-            company_inputs["co2_factor_fuel_t_per_mwh"] = st.number_input("Factor CO₂ combustibles (tCO₂/MWh) [opcional]", min_value=0.0, value=0.0, step=0.01)
-        with c2:
-            st.markdown("**Combustión móvil (flota)**")
-            company_inputs["fleet_diesel_l"] = st.number_input("Diésel flota (litros/año)", min_value=0.0, value=0.0, step=1000.0)
-            company_inputs["fleet_gasoline_l"] = st.number_input("Gasolina flota (litros/año)", min_value=0.0, value=0.0, step=1000.0)
-            company_inputs["fleet_km"] = st.number_input("Km recorridos (opcional)", min_value=0.0, value=0.0, step=1000.0)
-            st.markdown("**Emisiones fugitivas**")
-            company_inputs["refrigerant_type"] = st.text_input("Tipo de refrigerante principal (p. ej., R-410A)", value="")
-            company_inputs["refrigerant_kg"] = st.number_input("Kg recargados/año", min_value=0.0, value=0.0, step=10.0)
-
-    with tab_scope2:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("**Electricidad comprada**")
-            company_inputs["annual_electricity_mwh"] = st.number_input("Electricidad comprada (MWh/año)", min_value=0.0, value=0.0, step=100.0)
-            company_inputs["co2_factor_elec_t_per_mwh"] = st.number_input("Factor CO₂ electricidad (tCO₂/MWh) [opcional]", min_value=0.0, value=0.0, step=0.01)
-            company_inputs["cnmc_supplier_known"] = st.checkbox("Etiqueta/factor del proveedor disponible (factura/contrato)", value=False)
-            company_inputs["electricity_has_gdo"] = st.checkbox("El proveedor canjea GdO para tu consumo", value=False)
-            company_inputs["electricity_gdo_type"] = st.selectbox("Tipo de GdO (si aplica)", ["Ninguno/Desconocido", "Renovable", "Cogeneración"], index=0)
-        with c2:
-            st.markdown("**Calor/vapor comprado**")
-            company_inputs["annual_purchased_heat_mwh"] = st.number_input("Calor/vapor comprado (MWh/año)", min_value=0.0, value=0.0, step=50.0)
-            company_inputs["co2_factor_heat_t_per_mwh"] = st.number_input("Factor CO₂ calor/vapor (tCO₂/MWh) [opcional]", min_value=0.0, value=0.0, step=0.01)
-
-    st.markdown("### 2) Resultado de huella de carbono")
-    footprint = calculate_company_footprint(company_inputs)
-    h1, h2, h3, h4 = st.columns(4)
-    h1.metric("Alcance 1 (tCO₂e/año)", f"{footprint['scope1_t']:.1f}")
-    h2.metric("Alcance 2 (tCO₂e/año)", f"{footprint['scope2_t']:.1f}")
-    h3.metric("Alcance 3", "Informativo")
-    h4.metric("Huella total (1+2)", f"{footprint['total_t']:.1f}")
-
-    st.caption(
-        f"Cálculo Alcance 1: combustión fija + flota + fugitivas. "
-        f"Combustión fija con {footprint['scope1_factor_source']}. "
-        f"Alcance 2: electricidad (factor {footprint['used_elec_factor']:.3f} tCO₂/MWh) "
-        f"+ calor/vapor (factor {footprint['used_heat_factor']:.3f} tCO₂/MWh)."
-    )
-    if _to_float_or_zero(company_inputs.get("refrigerant_kg")) > 0 and not footprint["refrigerant_factor_found"]:
-        st.warning(
-            f"No se encontró GWP para '{footprint['refrigerant_key']}'. "
-            "La parte de fugitivas puede estar infraestimada."
-        )
-
-    with st.expander("Cómo se calcula la huella y qué incluye cada alcance"):
-        st.markdown(
-            "**Alcance 1 (directas):** combustibles en planta, flota propia y fugas de refrigerantes.\n\n"
-            "**Alcance 2 (indirectas por energía):** electricidad y calor/vapor comprados.\n\n"
-            "**Alcance 3 (otras indirectas):** cadena de suministro, viajes, logística, uso y fin de vida. "
-            "Se explica en la herramienta, pero no se calcula automáticamente en esta versión."
-        )
-
-    st.markdown("### 3) Restricciones técnicas para plan de mejora (opcional)")
-    c4, c5 = st.columns(2)
-    with c4:
-        company_inputs["roof_area_m2"] = st.number_input("Área disponible de cubierta (m²) [opcional]", min_value=0.0, value=0.0, step=100.0)
-        company_inputs["has_compressed_air"] = st.checkbox("Usa sistemas de aire comprimido", value=True)
-    with c5:
-        company_inputs["waste_heat_potential"] = st.selectbox("Potencial de calor residual (aprox.)", ["Desconocido", "Bajo", "Medio", "Alto"], index=0)
-        company_inputs["has_process_heat"] = st.checkbox("Tiene calor de proceso", value=True)
-        company_inputs["heat_temp_level"] = st.selectbox("Nivel de temperatura de proceso", ["Baja", "Media", "Alta", "Desconocida"], index=3)
-        company_inputs["load_profile_known"] = st.checkbox("Perfil de carga conocido", value=False)
-
-    # Normalizar tipo de GdO
-    if company_inputs.get("electricity_gdo_type") == "Ninguno/Desconocido":
-        company_inputs["electricity_gdo_type"] = None
-    elif company_inputs.get("electricity_gdo_type") == "Renovable":
-        company_inputs["electricity_gdo_type"] = "renewable"
-    elif company_inputs.get("electricity_gdo_type") == "Cogeneración":
-        company_inputs["electricity_gdo_type"] = "cogen"
-
-    # Derivar agregados para el motor de iniciativas
-    stationary_fuel_mwh = sum([
-        company_inputs.get("fuel_ng_mwh", 0.0),
-        company_inputs.get("fuel_diesel_mwh", 0.0),
-        company_inputs.get("fuel_fuel_oil_mwh", 0.0),
-        company_inputs.get("fuel_lpg_mwh", 0.0),
-        company_inputs.get("fuel_biomass_mwh", 0.0),
-    ])
-    company_inputs["annual_fuel_mwh"] = stationary_fuel_mwh if stationary_fuel_mwh > 0 else 0.0
-
-    # Señales para PESTEL (derivadas)
-    total_energy_mwh = (company_inputs.get("annual_electricity_mwh", 0.0) or 0.0) + (company_inputs.get("annual_fuel_mwh", 0.0) or 0.0)
-    if total_energy_mwh >= 20000:
-        company_inputs["energy_intensity"] = "Alta"
-    elif total_energy_mwh >= 5000:
-        company_inputs["energy_intensity"] = "Media"
-    else:
-        company_inputs["energy_intensity"] = "Baja"
-
-    elec_factor = company_inputs.get("co2_factor_elec_t_per_mwh") or 0.0
-    if elec_factor >= 0.3:
-        company_inputs["grid_emissions_level"] = "Alto"
-    elif 0 < elec_factor <= 0.1:
-        company_inputs["grid_emissions_level"] = "Bajo"
-    else:
-        company_inputs["grid_emissions_level"] = "Medio"
-
-    company_inputs["fossil_heat_use"] = "Alto" if stationary_fuel_mwh > 0 else "Ninguno"
-
-    country_text = (company_inputs.get("country_region") or "").lower()
-    company_inputs["eu_context"] = True if any(x in country_text for x in ["espa", "spain", "ue", "eu"]) else False
-
-    company_inputs["has_fleet"] = (company_inputs.get("fleet_diesel_l", 0.0) or 0.0) > 0 or (company_inputs.get("fleet_gasoline_l", 0.0) or 0.0) > 0
-    company_inputs["has_refrigerants"] = (company_inputs.get("refrigerant_kg", 0.0) or 0.0) > 0 or bool(company_inputs.get("refrigerant_type"))
-
-    # Convertir ceros a None (desconocido)
-    for k in [
-        "annual_electricity_mwh", "annual_fuel_mwh", "electricity_price_eur_mwh", "fuel_price_eur_mwh",
-        "co2_factor_elec_t_per_mwh", "co2_factor_fuel_t_per_mwh", "roof_area_m2"
-    ]:
-        if isinstance(company_inputs.get(k), (int, float)) and company_inputs.get(k) == 0.0:
-            company_inputs[k] = None
-
-    st.markdown("### 4) PESTEL (breve)")
-    if "ai_pestel" not in st.session_state:
-        st.session_state["ai_pestel"] = None
-    if "ai_pestel_key" not in st.session_state:
-        st.session_state["ai_pestel_key"] = None
-
-    col_p_a, col_p_b = st.columns([1, 3])
-    with col_p_a:
-        gen_pestel = st.button("Generar PESTEL con IA", use_container_width=True)
-    with col_p_b:
-        st.caption("PESTEL generado por IA usando los inputs actuales.")
-
-    pestel_key = json.dumps(company_inputs, sort_keys=True, ensure_ascii=False)
-    if st.session_state["ai_pestel_key"] != pestel_key:
-        st.session_state["ai_pestel_key"] = pestel_key
-        st.session_state["ai_pestel"] = None
-
-    if gen_pestel:
-        try:
-            with st.spinner("Generando PESTEL con IA..."):
-                ai_p = generate_ai_pestel(
-                    provider=ai_provider,
-                    api_key=ai_api_key.strip(),
-                    model=ai_model.strip(),
-                    company_inputs=company_inputs,
+            ai_api_key = st.secrets.get("GEMINI_API_KEY", "")
+            diag["from_st_secrets"] = "SÍ" if ai_api_key else "NO"
+        except Exception:
+            ai_api_key = ""
+    
+        if not ai_api_key:
+            env_key = os.getenv("GEMINI_API_KEY", "") or ""
+            if env_key:
+                ai_api_key = env_key
+                diag["from_env"] = "SÍ"
+    
+        if not ai_api_key and tomllib is not None:
+            try:
+                path = ".streamlit/secrets.toml"
+                raw = ""
+                if os.path.exists(path):
+                    raw = open(path, "rb").read().decode("utf-8-sig", errors="ignore")
+                if raw:
+                    data = tomllib.loads(raw)
+                    ai_api_key = data.get("GEMINI_API_KEY", "") or ""
+                    if ai_api_key:
+                        diag["from_file"] = "SÍ"
+            except Exception as e:
+                diag["file_parse_error"] = str(e)[:120]
+    
+        key_status = "SÍ" if ai_api_key else "NO"
+        st.caption(f"Clave Gemini cargada: {key_status}")
+        ai_model = "gemini-2.5-flash"
+    
+    
+    # -----------------------------
+    # Data source selection
+    # -----------------------------
+    df_base = None
+    company_inputs: Dict = {}
+    pestel: Dict[str, List[str]] = {}
+    
+    if mode == "A":
+        st.markdown("### 1) Cuestionario inicial para calcular la huella")
+        st.caption("Completa los subapartados para obtener una estimación anual de huella en tCO₂e.")
+        tab_company, tab_scope1, tab_scope2 = st.tabs(["Sobre la empresa", "Alcance 1", "Alcance 2"])
+    
+        with tab_company:
+            c1, c2 = st.columns(2)
+            with c1:
+                company_inputs["company_name"] = st.text_input("Nombre de la organización (opcional)", value="")
+                company_inputs["cnae_sector"] = st.text_input("CNAE / Sector", value="")
+                company_inputs["country_region"] = st.text_input("País / Comunidad / Provincia", value="España")
+                company_inputs["inventory_year"] = st.number_input("Año de inventario (cálculo)", min_value=2000, max_value=2100, value=2024, step=1)
+                company_inputs["sector"] = company_inputs["cnae_sector"]
+            with c2:
+                st.markdown("**Evidencias y datos disponibles**")
+                company_inputs["has_invoices"] = st.checkbox("Facturas/lecturas disponibles", value=True)
+                company_inputs["has_meters"] = st.checkbox("Contadores/medición disponibles", value=False)
+                company_inputs["has_submetering"] = st.checkbox("Submetering disponible", value=False)
+                company_inputs["fuel_price_eur_mwh"] = st.number_input("Precio combustible (€/MWh)", min_value=0.0, value=0.0, step=5.0)
+                company_inputs["electricity_price_eur_mwh"] = st.number_input("Precio electricidad (€/MWh)", min_value=0.0, value=0.0, step=5.0)
+                audit_file = st.file_uploader("Subir auditoría energética o documentación soporte", type=["pdf", "xlsx", "xls", "csv"])
+                if audit_file is not None:
+                    st.session_state["energy_audit_meta"] = {
+                        "name": audit_file.name,
+                        "size": getattr(audit_file, "size", None),
+                        "type": audit_file.type,
+                    }
+                    company_inputs["has_energy_audit"] = True
+                    st.caption(f"Auditoría cargada: {audit_file.name}")
+                    if audit_file.name.lower().endswith(".csv"):
+                        try:
+                            audit_df = pd.read_csv(audit_file)
+                            st.dataframe(audit_df.head(10), use_container_width=True)
+                        except Exception:
+                            st.caption("No se pudo leer el CSV de auditoría (formato no estándar).")
+                    if audit_file.name.lower().endswith((".xlsx", ".xls")):
+                        try:
+                            audit_df = pd.read_excel(audit_file)
+                            st.dataframe(audit_df.head(10), use_container_width=True)
+                        except Exception:
+                            st.caption("No se pudo leer el Excel de auditoría (formato no estándar).")
+                else:
+                    company_inputs["has_energy_audit"] = False
+    
+            st.markdown("**Medidas ya implantadas**")
+            if "implemented_measures_df" not in st.session_state:
+                st.session_state["implemented_measures_df"] = pd.DataFrame(
+                    [
+                        {"medida": "LED", "estado": "No"},
+                        {"medida": "GdO", "estado": "No"},
+                        {"medida": "Paneles solares", "estado": "No"},
+                        {"medida": "Flota eléctrica", "estado": "No"},
+                        {"medida": "Variadores de frecuencia", "estado": "No"},
+                        {"medida": "EMS / submetering", "estado": "No"},
+                        {"medida": "Recuperación de calor", "estado": "No"},
+                        {"medida": "Programa de fugas de aire comprimido", "estado": "No"},
+                    ]
                 )
-            st.session_state["ai_pestel"] = ai_p
-            st.success("PESTEL generado.")
-        except Exception as e:
-            st.error(f"Fallo al generar PESTEL con IA: {e}")
-
-    pestel = st.session_state["ai_pestel"]
-    if pestel is None:
-        st.info("PESTEL no generado. Puedes continuar con las iniciativas si quieres.")
-    if pestel:
-        pcols = st.columns(3)
-        keys = list(pestel.keys())
-        for i, k in enumerate(keys):
-            with pcols[i % 3]:
-                st.subheader(k)
-                for bullet in pestel[k]:
-                    st.write(f"- {bullet}")
-
-    st.markdown("### 5) Iniciativas propuestas (editables antes de optimizar)")
-    n_inits = 8
-
-    if "ai_initiatives" not in st.session_state:
-        st.session_state["ai_initiatives"] = None
-
-    col_ai_a, col_ai_b = st.columns([1, 3])
-    with col_ai_a:
-        generate_ai = st.button("Generar 8 iniciativas con IA", use_container_width=True)
-    with col_ai_b:
-        st.caption("Usa todos los inputs de empresa para generar la tabla normativa completa.")
-
-    if generate_ai:
-        try:
-            with st.spinner("Generando iniciativas con IA..."):
-                ai_df = generate_ai_initiatives(
-                    provider=ai_provider,
-                    api_key=ai_api_key.strip(),
-                    model=ai_model.strip(),
-                    company_inputs=company_inputs,
-                    n=n_inits,
+            measures_df = st.data_editor(
+                st.session_state["implemented_measures_df"],
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "estado": st.column_config.SelectboxColumn(
+                        "Estado",
+                        options=["No", "Parcial", "Sí"],
+                    )
+                },
+            )
+            st.session_state["implemented_measures_df"] = measures_df
+            company_inputs["implemented_measures"] = {
+                row["medida"]: row["estado"] for _, row in measures_df.iterrows()
+            }
+    
+        with tab_scope1:
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("**Combustión fija**")
+                stationary_fuels = [
+                    ("gas_natural", "Gas natural"),
+                    ("gasoleo", "Gasóleo / gasóleo C"),
+                    ("fueloil", "Fuelóleo"),
+                    ("glp", "GLP"),
+                    ("biomasa", "Biomasa"),
+                ]
+                for f_key, f_label in stationary_fuels:
+                    col_a, col_b = st.columns([2, 1])
+                    with col_a:
+                        company_inputs[f"stationary_{f_key}_qty"] = st.number_input(
+                            f"{f_label} (cantidad)",
+                            min_value=0.0,
+                            value=0.0,
+                            step=100.0,
+                            key=f"{f_key}_qty",
+                        )
+                    with col_b:
+                        company_inputs[f"stationary_{f_key}_unit"] = st.selectbox(
+                            f"Unidad {f_label}",
+                            ["kWh", "MWh", "L"],
+                            index=1,
+                            key=f"{f_key}_unit",
+                        )
+            with c2:
+                st.markdown("**Combustión móvil (flota)**")
+                st.caption("Introduce consumos por grupos de vehículos. Vehículos eléctricos no computan en Alcance 1.")
+                if "fleet_table_df" not in st.session_state:
+                    st.session_state["fleet_table_df"] = pd.DataFrame(
+                        [
+                            {
+                                "vehicle_type": "truck",
+                                "fuel": "diesel",
+                                "quantity": 0.0,
+                                "unit": "L",
+                                "adblue_liters": 0.0,
+                                "notes": "",
+                            }
+                        ]
+                    )
+                fleet_df = st.data_editor(
+                    st.session_state["fleet_table_df"],
+                    use_container_width=True,
+                    num_rows="dynamic",
+                    hide_index=True,
+                    column_config={
+                        "vehicle_type": st.column_config.SelectboxColumn(
+                            "Tipo vehículo",
+                            options=["car", "truck"],
+                        ),
+                        "fuel": st.column_config.SelectboxColumn(
+                            "Combustible",
+                            options=["diesel", "gasoline", "glp", "electric"],
+                        ),
+                        "unit": st.column_config.SelectboxColumn(
+                            "Unidad",
+                            options=["L", "kWh", "MWh"],
+                        ),
+                    },
                 )
-            st.session_state["ai_initiatives"] = ai_df.copy()
-            st.success("Iniciativas generadas.")
-        except Exception as e:
-            st.error(f"Fallo al generar iniciativas con IA: {e}")
-
-    if st.session_state["ai_initiatives"] is None:
-        st.info("Pulsa 'Generar 8 iniciativas con IA' para crear la lista.")
+                st.session_state["fleet_table_df"] = fleet_df
+                company_inputs["fleet_table"] = fleet_df.to_dict(orient="records")
+    
+                st.markdown("**Emisiones fugitivas**")
+                refrigerant_options = [r["name"] for r in REFRIGERANTS_CATALOG] + ["Otro / personalizado"]
+                selected_refrigerant = st.selectbox("Refrigerante", refrigerant_options, index=0)
+                company_inputs["refrigerant_selected"] = selected_refrigerant
+                if selected_refrigerant == "Otro / personalizado":
+                    company_inputs["refrigerant_selected"] = st.text_input("Nombre del refrigerante", value="")
+                    company_inputs["refrigerant_custom_gwp"] = st.number_input("GWP/PCA (manual)", min_value=0.0, value=0.0, step=10.0)
+                else:
+                    company_inputs["refrigerant_custom_gwp"] = 0.0
+                company_inputs["refrigerant_kg"] = st.number_input("Kg recargados/año", min_value=0.0, value=0.0, step=10.0)
+    
+        with tab_scope2:
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("**Electricidad comprada**")
+                company_inputs["annual_electricity_mwh"] = st.number_input("Electricidad comprada (MWh/año)", min_value=0.0, value=0.0, step=100.0)
+                method_label = st.selectbox("Método de cálculo electricidad", ["Market-based", "Location-based"], index=0)
+                company_inputs["electricity_method"] = "market" if method_label == "Market-based" else "location"
+                st.caption("Market-based usa comercializadora/GdO. Location-based usa factor medio del sistema REE.")
+    
+                if company_inputs["electricity_method"] == "market":
+                    company_inputs["cnmc_supplier_known"] = st.checkbox("Etiqueta/factor del proveedor disponible (factura/contrato)", value=False)
+                    company_inputs["supplier_factor_t_per_mwh"] = st.number_input(
+                        "Factor CO₂ proveedor (tCO₂/MWh) [opcional]",
+                        min_value=0.0,
+                        value=0.0,
+                        step=0.01,
+                    )
+                    company_inputs["supplier_name"] = st.text_input("Comercializadora (opcional)", value="")
+                    company_inputs["electricity_has_gdo"] = st.checkbox("El proveedor canjea GdO para tu consumo", value=False)
+                    company_inputs["electricity_gdo_type"] = st.selectbox(
+                        "Tipo de GdO (si aplica)",
+                        ["Ninguno/Desconocido", "Renovable", "Cogeneración"],
+                        index=0,
+                    )
+                    coverage_mode = st.radio("Cobertura GdO", ["% del consumo", "kWh cubiertos"], index=0, horizontal=True)
+                    if coverage_mode == "% del consumo":
+                        company_inputs["gdo_coverage_pct"] = st.number_input("Cobertura GdO (%)", min_value=0.0, max_value=100.0, value=0.0, step=5.0)
+                        company_inputs["gdo_coverage_kwh"] = 0.0
+                    else:
+                        company_inputs["gdo_coverage_kwh"] = st.number_input("kWh con GdO", min_value=0.0, value=0.0, step=1000.0)
+                        company_inputs["gdo_coverage_pct"] = 0.0
+                else:
+                    company_inputs["location_system"] = st.selectbox("Sistema eléctrico", ["Peninsular", "No peninsular"], index=0)
+                    company_inputs["electricity_has_gdo"] = False
+                    company_inputs["electricity_gdo_type"] = None
+                    company_inputs["cnmc_supplier_known"] = False
+                    company_inputs["supplier_factor_t_per_mwh"] = 0.0
+                    company_inputs["gdo_coverage_pct"] = 0.0
+                    company_inputs["gdo_coverage_kwh"] = 0.0
+            with c2:
+                st.markdown("**Calor/vapor comprado**")
+                company_inputs["annual_purchased_heat_mwh"] = st.number_input("Calor/vapor comprado (MWh/año)", min_value=0.0, value=0.0, step=50.0)
+                company_inputs["co2_factor_heat_t_per_mwh"] = st.number_input("Factor CO₂ calor/vapor (tCO₂/MWh) [opcional]", min_value=0.0, value=0.0, step=0.01)
+    
+        st.markdown("### 2) Resultado de huella de carbono")
+        footprint = calculate_company_footprint(company_inputs)
+        h1, h2, h3, h4 = st.columns(4)
+        h1.metric("Alcance 1 (tCO₂e/año)", f"{footprint['scope1_t']:.1f}")
+        h2.metric("Alcance 2 (tCO₂e/año)", f"{footprint['scope2_t']:.1f}")
+        h3.metric("Alcance 3", "Informativo")
+        h4.metric("Huella total (1+2)", f"{footprint['total_t']:.1f}")
+    
+        s1, s2, s3 = st.columns(3)
+        s1.metric("A1 - Combustión fija", f"{footprint['scope1_stationary_t']:.1f}")
+        s2.metric("A1 - Flota", f"{footprint['scope1_fleet_t']:.1f}")
+        s3.metric("A1 - Fugitivas", f"{footprint['scope1_fugitive_t']:.1f}")
+        e1, e2 = st.columns(2)
+        e1.metric("A2 - Electricidad", f"{footprint['scope2_elec_t']:.1f}")
+        e2.metric("A2 - Calor/vapor", f"{footprint['scope2_heat_t']:.1f}")
+    
+        st.caption(
+            f"Cálculo Alcance 1: combustión fija + flota + fugitivas. "
+            f"Combustión fija con {footprint['scope1_factor_source']}. "
+            f"Alcance 2 electricidad: {footprint['scope2_elec_method']} "
+            f"(factor {footprint['used_elec_factor']:.3f} tCO₂/MWh, fuente: {footprint['scope2_elec_source']}). "
+            f"Calor/vapor (factor {footprint['used_heat_factor']:.3f} tCO₂/MWh)."
+        )
+        if _to_float_or_zero(company_inputs.get("refrigerant_kg")) > 0 and not footprint["refrigerant_factor_found"]:
+            st.warning(
+                f"No se encontró GWP para '{footprint['refrigerant_key']}'. "
+                "La parte de fugitivas puede estar infraestimada."
+            )
+        elif _to_float_or_zero(footprint.get("refrigerant_gwp")) >= 2000:
+            st.warning("Refrigerante con GWP alto. Considera plan de sustitución y control de fugas.")
+        if _to_float_or_zero(company_inputs.get("annual_electricity_mwh")) > 0 and _to_float_or_zero(footprint.get("used_elec_factor")) == 0:
+            st.warning("No hay factor eléctrico válido disponible; revisa el método y los factores.")
+    
+        quality_label, quality_note = get_data_quality_score(company_inputs, footprint)
+        st.markdown("**Calidad del dato**")
+        st.write(f"{quality_label} — {quality_note}")
+    
+        with st.expander("Cómo se calcula la huella y qué incluye cada alcance"):
+            st.markdown(
+                "**Alcance 1 (directas):** combustibles en planta, flota propia y fugas de refrigerantes.\n\n"
+                "**Alcance 2 (indirectas por energía):** electricidad y calor/vapor comprados.\n\n"
+                "**Alcance 3 (otras indirectas):** cadena de suministro, viajes, logística, uso y fin de vida. "
+                "Se explica en la herramienta, pero no se calcula automáticamente en esta versión."
+            )
+    
+        st.markdown("### 3) Restricciones técnicas para plan de mejora (opcional)")
+        c4, c5 = st.columns(2)
+        with c4:
+            company_inputs["roof_area_m2"] = st.number_input("Área disponible de cubierta (m²) [opcional]", min_value=0.0, value=0.0, step=100.0)
+            company_inputs["has_compressed_air"] = st.checkbox("Usa sistemas de aire comprimido", value=True)
+        with c5:
+            company_inputs["waste_heat_potential"] = st.selectbox("Potencial de calor residual (aprox.)", ["Desconocido", "Bajo", "Medio", "Alto"], index=0)
+            company_inputs["has_process_heat"] = st.checkbox("Tiene calor de proceso", value=True)
+            company_inputs["heat_temp_level"] = st.selectbox("Nivel de temperatura de proceso", ["Baja", "Media", "Alta", "Desconocida"], index=3)
+            company_inputs["load_profile_known"] = st.checkbox("Perfil de carga conocido", value=False)
+    
+        # Normalizar tipo de GdO
+        if company_inputs.get("electricity_gdo_type") == "Ninguno/Desconocido":
+            company_inputs["electricity_gdo_type"] = None
+        elif company_inputs.get("electricity_gdo_type") == "Renovable":
+            company_inputs["electricity_gdo_type"] = "renewable"
+        elif company_inputs.get("electricity_gdo_type") == "Cogeneración":
+            company_inputs["electricity_gdo_type"] = "cogen"
+    
+        # Derivar agregados para el motor de iniciativas
+        stationary_fuel_mwh = estimate_stationary_fuel_mwh(company_inputs)
+        company_inputs["annual_fuel_mwh"] = stationary_fuel_mwh if stationary_fuel_mwh > 0 else 0.0
+        company_inputs["co2_factor_elec_t_per_mwh"] = footprint.get("used_elec_factor", 0.0)
+        if stationary_fuel_mwh > 0:
+            company_inputs["co2_factor_fuel_t_per_mwh"] = footprint.get("scope1_stationary_t", 0.0) / stationary_fuel_mwh
+        else:
+            company_inputs["co2_factor_fuel_t_per_mwh"] = None
+    
+        # Señales para PESTEL (derivadas)
+        total_energy_mwh = (company_inputs.get("annual_electricity_mwh", 0.0) or 0.0) + (company_inputs.get("annual_fuel_mwh", 0.0) or 0.0)
+        if total_energy_mwh >= 20000:
+            company_inputs["energy_intensity"] = "Alta"
+        elif total_energy_mwh >= 5000:
+            company_inputs["energy_intensity"] = "Media"
+        else:
+            company_inputs["energy_intensity"] = "Baja"
+    
+        elec_factor = company_inputs.get("co2_factor_elec_t_per_mwh") or 0.0
+        if elec_factor >= 0.3:
+            company_inputs["grid_emissions_level"] = "Alto"
+        elif 0 < elec_factor <= 0.1:
+            company_inputs["grid_emissions_level"] = "Bajo"
+        else:
+            company_inputs["grid_emissions_level"] = "Medio"
+    
+        company_inputs["fossil_heat_use"] = "Alto" if stationary_fuel_mwh > 0 else "Ninguno"
+    
+        country_text = (company_inputs.get("country_region") or "").lower()
+        company_inputs["eu_context"] = True if any(x in country_text for x in ["espa", "spain", "ue", "eu"]) else False
+    
+        fleet_rows = company_inputs.get("fleet_table") or []
+        company_inputs["has_fleet"] = any(_to_float_or_zero(r.get("quantity")) > 0 for r in fleet_rows)
+        company_inputs["has_refrigerants"] = (company_inputs.get("refrigerant_kg", 0.0) or 0.0) > 0 or bool(company_inputs.get("refrigerant_selected"))
+    
+        # Convertir ceros a None (desconocido)
+        for k in [
+            "annual_electricity_mwh", "annual_fuel_mwh", "electricity_price_eur_mwh", "fuel_price_eur_mwh",
+            "co2_factor_elec_t_per_mwh", "co2_factor_fuel_t_per_mwh", "roof_area_m2"
+        ]:
+            if isinstance(company_inputs.get(k), (int, float)) and company_inputs.get(k) == 0.0:
+                company_inputs[k] = None
+    
+        st.markdown("### 4) PESTEL (breve)")
+        if "ai_pestel" not in st.session_state:
+            st.session_state["ai_pestel"] = None
+        if "ai_pestel_key" not in st.session_state:
+            st.session_state["ai_pestel_key"] = None
+    
+        col_p_a, col_p_b = st.columns([1, 3])
+        with col_p_a:
+            gen_pestel = st.button("Generar PESTEL con IA", use_container_width=True)
+        with col_p_b:
+            st.caption("PESTEL generado por IA usando los inputs actuales.")
+    
+        pestel_key = json.dumps(company_inputs, sort_keys=True, ensure_ascii=False)
+        if st.session_state["ai_pestel_key"] != pestel_key:
+            st.session_state["ai_pestel_key"] = pestel_key
+            st.session_state["ai_pestel"] = None
+    
+        if gen_pestel:
+            try:
+                with st.spinner("Generando PESTEL con IA..."):
+                    ai_p = generate_ai_pestel(
+                        provider=ai_provider,
+                        api_key=ai_api_key.strip(),
+                        model=ai_model.strip(),
+                        company_inputs=company_inputs,
+                    )
+                st.session_state["ai_pestel"] = ai_p
+                st.success("PESTEL generado.")
+            except Exception as e:
+                st.error(f"Fallo al generar PESTEL con IA: {e}")
+    
+        pestel = st.session_state["ai_pestel"]
+        if pestel is None:
+            st.info("PESTEL no generado. Puedes continuar con las iniciativas si quieres.")
+        if pestel:
+            pcols = st.columns(3)
+            keys = list(pestel.keys())
+            for i, k in enumerate(keys):
+                with pcols[i % 3]:
+                    st.subheader(k)
+                    for bullet in pestel[k]:
+                        st.write(f"- {bullet}")
+    
+        st.markdown("### 5) Iniciativas propuestas (editables antes de optimizar)")
+        n_inits = 8
+    
+        if "ai_initiatives" not in st.session_state:
+            st.session_state["ai_initiatives"] = None
+    
+        col_ai_a, col_ai_b = st.columns([1, 3])
+        with col_ai_a:
+            generate_ai = st.button("Generar 8 iniciativas con IA", use_container_width=True)
+        with col_ai_b:
+            st.caption("Usa todos los inputs de empresa para generar la tabla normativa completa.")
+    
+        if generate_ai:
+            try:
+                with st.spinner("Generando iniciativas con IA..."):
+                    ai_df = generate_ai_initiatives(
+                        provider=ai_provider,
+                        api_key=ai_api_key.strip(),
+                        model=ai_model.strip(),
+                        company_inputs=company_inputs,
+                        n=n_inits,
+                    )
+                st.session_state["ai_initiatives"] = ai_df.copy()
+                st.success("Iniciativas generadas.")
+            except Exception as e:
+                st.error(f"Fallo al generar iniciativas con IA: {e}")
+    
+        if st.session_state["ai_initiatives"] is None:
+            st.info("Pulsa 'Generar 8 iniciativas con IA' para crear la lista.")
+            st.stop()
+    
+        df_base = st.session_state["ai_initiatives"].copy()
+        df_base = normalize_columns(df_base)
+        df_base = coerce_numeric(df_base)
+    
+        # Ensure required/optional columns exist
+        for c in REQUIRED_COLUMNS:
+            if c not in df_base.columns:
+                df_base[c] = np.nan
+        for c in OPTIONAL_COLUMNS:
+            if c not in df_base.columns:
+                df_base[c] = ""
+    
+        st.info("Puedes editar valores antes de optimizar. Si faltan datos, deja en blanco: se penaliza por confianza.")
+        df_base = pd.DataFrame(
+            st.data_editor(
+                df_base,
+                use_container_width=True,
+                hide_index=True,
+                num_rows="fixed",
+                column_config=column_config_es(list(df_base.columns)),
+            )
+        )
+    
+    else:
         st.stop()
-
-    df_base = st.session_state["ai_initiatives"].copy()
-    df_base = normalize_columns(df_base)
-    df_base = coerce_numeric(df_base)
-
-    # Ensure required/optional columns exist
+    
+    # Ensure required cols exist
     for c in REQUIRED_COLUMNS:
         if c not in df_base.columns:
             df_base[c] = np.nan
     for c in OPTIONAL_COLUMNS:
         if c not in df_base.columns:
             df_base[c] = ""
-
-    st.info("Puedes editar valores antes de optimizar. Si faltan datos, deja en blanco: se penaliza por confianza.")
-    df_base = pd.DataFrame(
-        st.data_editor(
-            df_base,
-            use_container_width=True,
-            hide_index=True,
-            num_rows="fixed",
-            column_config=column_config_es(list(df_base.columns)),
+    
+    df_base = coerce_numeric(df_base)
+    
+    df = compute_metrics(
+        df_base,
+        horizon_years=horizon_years,
+        discount_rate=discount_rate,
+        co2_price=co2_price,
+        confidence_floor=confidence_floor,
+    )
+    
+    st.markdown("### 6) Evaluación de iniciativas")
+    cols_to_show = [
+        "id",
+        "initiative_family",
+        "initiative",
+        "scope",
+        "emission_source",
+        "activity_unit",
+        "mrv_method",
+        "data_dependency",
+        "capex_eur",
+        "annual_opex_saving_eur",
+        "annual_co2_reduction_t",
+        "co2_value_eur_per_year",
+        "total_annual_benefit_eur",
+        "npv_eur",
+        "npv_penalized_eur",
+        "payback_years",
+        "implementation_months",
+        "strategic_score_1_5",
+        "required_info",
+        "provided_info",
+        "notes",
+    ]
+    cols_to_show = [c for c in cols_to_show if c in df.columns]
+    st.dataframe(
+        df[cols_to_show],
+        use_container_width=True,
+        hide_index=True,
+        column_config=column_config_es(cols_to_show),
+    )
+    
+    st.markdown("### 7) Optimización del portafolio")
+    df_opt, summary = optimize_portfolio(
+        df=df,
+        budget_eur=budget_eur,
+        min_co2_t=min_co2_t,
+        objective=objective,
+        w_npv=w_npv,
+        w_co2=w_co2,
+        w_strategy=w_strategy,
+    )
+    
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Estado", summary["status"])
+    c2.metric("Iniciativas seleccionadas", summary["selected_count"])
+    c3.metric("CAPEX seleccionado (€)", f"{summary['capex_selected']:,.0f}")
+    c4.metric("Reducción CO₂ seleccionada (t/año)", f"{summary['co2_selected']:,.1f}")
+    st.metric("NPV penalizado total seleccionado (€)", f"{summary['npv_selected']:,.0f}")
+    
+    st.markdown("#### Iniciativas seleccionadas")
+    selected_df = df_opt[df_opt["selected"]].copy()
+    st.dataframe(
+        selected_df[cols_to_show],
+        use_container_width=True,
+        hide_index=True,
+        column_config=column_config_es(cols_to_show),
+    )
+    
+    # -----------------------------
+    # Charts (hardened)
+    # -----------------------------
+    st.markdown("### 8) Visuales")
+    
+    chart_df = df_opt.copy()
+    chart_df["selected_label"] = np.where(chart_df["selected"], "Seleccionada", "No seleccionada")
+    
+    # --- Plot-safe scatter ---
+    plot_df = chart_df.copy()
+    for col in ["capex_eur", "annual_co2_reduction_t", "total_annual_benefit_eur"]:
+        if col in plot_df.columns:
+            plot_df[col] = pd.to_numeric(plot_df[col], errors="coerce")
+    
+    plot_df = plot_df.replace([np.inf, -np.inf], np.nan)
+    
+    plot_df["size_for_plot"] = plot_df["total_annual_benefit_eur"].fillna(0.0)
+    plot_df["size_for_plot"] = plot_df["size_for_plot"].clip(lower=0.0)
+    
+    if plot_df["size_for_plot"].max() <= 0:
+        plot_df["size_for_plot"] = 1.0
+    
+    plot_df = plot_df.dropna(subset=["capex_eur", "annual_co2_reduction_t"])
+    
+    if plot_df.empty:
+        st.warning("No hay suficientes datos numéricos para graficar CAPEX vs CO₂. Completa/edita esas columnas.")
+    else:
+        fig1 = px.scatter(
+            plot_df,
+            x="capex_eur",
+            y="annual_co2_reduction_t",
+            size="size_for_plot",
+            color="selected_label",
+            hover_name="initiative",
+            title="CAPEX vs reducción CO₂ (tamaño burbuja = beneficio anual)",
+            size_max=40,
         )
-    )
-
-else:
-    st.stop()
-
-# Ensure required cols exist
-for c in REQUIRED_COLUMNS:
-    if c not in df_base.columns:
-        df_base[c] = np.nan
-for c in OPTIONAL_COLUMNS:
-    if c not in df_base.columns:
-        df_base[c] = ""
-
-df_base = coerce_numeric(df_base)
-
-df = compute_metrics(
-    df_base,
-    horizon_years=horizon_years,
-    discount_rate=discount_rate,
-    co2_price=co2_price,
-    confidence_floor=confidence_floor,
-)
-
-st.markdown("### 6) Evaluación de iniciativas")
-cols_to_show = [
-    "id",
-    "initiative_family",
-    "initiative",
-    "scope",
-    "emission_source",
-    "activity_unit",
-    "mrv_method",
-    "data_dependency",
-    "capex_eur",
-    "annual_opex_saving_eur",
-    "annual_co2_reduction_t",
-    "co2_value_eur_per_year",
-    "total_annual_benefit_eur",
-    "npv_eur",
-    "npv_penalized_eur",
-    "payback_years",
-    "implementation_months",
-    "strategic_score_1_5",
-    "required_info",
-    "provided_info",
-    "notes",
-]
-cols_to_show = [c for c in cols_to_show if c in df.columns]
-st.dataframe(
-    df[cols_to_show],
-    use_container_width=True,
-    hide_index=True,
-    column_config=column_config_es(cols_to_show),
-)
-
-st.markdown("### 7) Optimización del portafolio")
-df_opt, summary = optimize_portfolio(
-    df=df,
-    budget_eur=budget_eur,
-    min_co2_t=min_co2_t,
-    objective=objective,
-    w_npv=w_npv,
-    w_co2=w_co2,
-    w_strategy=w_strategy,
-)
-
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Estado", summary["status"])
-c2.metric("Iniciativas seleccionadas", summary["selected_count"])
-c3.metric("CAPEX seleccionado (€)", f"{summary['capex_selected']:,.0f}")
-c4.metric("Reducción CO₂ seleccionada (t/año)", f"{summary['co2_selected']:,.1f}")
-st.metric("NPV penalizado total seleccionado (€)", f"{summary['npv_selected']:,.0f}")
-
-st.markdown("#### Iniciativas seleccionadas")
-selected_df = df_opt[df_opt["selected"]].copy()
-st.dataframe(
-    selected_df[cols_to_show],
-    use_container_width=True,
-    hide_index=True,
-    column_config=column_config_es(cols_to_show),
-)
-
-# -----------------------------
-# Charts (hardened)
-# -----------------------------
-st.markdown("### 8) Visuales")
-
-chart_df = df_opt.copy()
-chart_df["selected_label"] = np.where(chart_df["selected"], "Seleccionada", "No seleccionada")
-
-# --- Plot-safe scatter ---
-plot_df = chart_df.copy()
-for col in ["capex_eur", "annual_co2_reduction_t", "total_annual_benefit_eur"]:
-    if col in plot_df.columns:
-        plot_df[col] = pd.to_numeric(plot_df[col], errors="coerce")
-
-plot_df = plot_df.replace([np.inf, -np.inf], np.nan)
-
-plot_df["size_for_plot"] = plot_df["total_annual_benefit_eur"].fillna(0.0)
-plot_df["size_for_plot"] = plot_df["size_for_plot"].clip(lower=0.0)
-
-if plot_df["size_for_plot"].max() <= 0:
-    plot_df["size_for_plot"] = 1.0
-
-plot_df = plot_df.dropna(subset=["capex_eur", "annual_co2_reduction_t"])
-
-if plot_df.empty:
-    st.warning("No hay suficientes datos numéricos para graficar CAPEX vs CO₂. Completa/edita esas columnas.")
-else:
-    fig1 = px.scatter(
-        plot_df,
-        x="capex_eur",
-        y="annual_co2_reduction_t",
-        size="size_for_plot",
+        st.plotly_chart(fig1, use_container_width=True)
+    
+    # --- Plot-safe bar ---
+    bar_df = chart_df.copy()
+    bar_df["npv_penalized_eur"] = pd.to_numeric(bar_df.get("npv_penalized_eur", 0.0), errors="coerce").fillna(0.0)
+    
+    fig2 = px.bar(
+        bar_df.sort_values("npv_penalized_eur", ascending=False),
+        x="initiative",
+        y="npv_penalized_eur",
         color="selected_label",
-        hover_name="initiative",
-        title="CAPEX vs reducción CO₂ (tamaño burbuja = beneficio anual)",
-        size_max=40,
+        title="NPV penalizado por iniciativa",
     )
-    st.plotly_chart(fig1, use_container_width=True)
+    fig2.update_layout(xaxis_tickangle=-30)
+    st.plotly_chart(fig2, use_container_width=True)
+    
+    # -----------------------------
+    # AI Copilot
+    # -----------------------------
+    st.markdown("### 9) Copiloto IA")
+    
+    ai_extra_prompt = st.text_area(
+        "Instrucción opcional para la IA (p. ej., flujo de caja, riesgo regulatorio u operaciones):",
+        value="Prioriza recomendaciones accionables, con bajo riesgo de implementación y con enfoque MRV.",
+    )
+    
+    assumptions = {
+        "horizon_years": horizon_years,
+        "discount_rate": discount_rate,
+        "co2_price_eur_per_t": co2_price,
+        "objective": objective,
+        "weights": {"w_npv": w_npv, "w_co2": w_co2, "w_strategy": w_strategy},
+    }
+    constraints = {"budget_eur": budget_eur, "min_co2_t_per_year": min_co2_t}
+    
+    if st.button("Generar informe ejecutivo IA", use_container_width=True):
+        try:
+            with st.spinner("Generando informe IA..."):
+                ai_text = generate_ai_brief(
+                    provider=ai_provider,
+                    api_key=ai_api_key.strip(),
+                    model=ai_model.strip(),
+                    mode=mode,
+                    company_inputs=company_inputs,
+                    assumptions=assumptions,
+                    constraints=constraints,
+                    summary=summary,
+                    df_all=df_opt,
+                    df_selected=selected_df,
+                    pestel=pestel,
+                    extra_prompt=ai_extra_prompt.strip(),
+                )
+            st.success("Informe IA generado.")
+            st.markdown(ai_text if ai_text else "_El modelo no devolvió contenido._")
+        except Exception as e:
+            st.error(f"Fallo en generación IA: {e}")
+    
+    # -----------------------------
+    # Export
+    # -----------------------------
+    st.markdown("### 10) Exportar resultados")
+    export_cols = [
+        "id",
+        "initiative_family",
+        "initiative",
+        "scope",
+        "emission_source",
+        "activity_unit",
+        "mrv_method",
+        "capex_eur",
+        "annual_opex_saving_eur",
+        "annual_co2_reduction_t",
+        "co2_value_eur_per_year",
+        "implementation_months",
+        "strategic_score_1_5",
+        "npv_eur",
+        "npv_penalized_eur",
+        "payback_years",
+        "required_info",
+        "provided_info",
+        "notes",
+        "selected",
+    ]
+    export_cols = [c for c in export_cols if c in df_opt.columns]
+    export = df_opt[export_cols].copy()
+    
+    st.download_button(
+        "Descargar resultados del portafolio (CSV)",
+        data=export.to_csv(index=False).encode("utf-8"),
+        file_name="portfolio_results.csv",
+        mime="text/csv",
+    )
 
-# --- Plot-safe bar ---
-bar_df = chart_df.copy()
-bar_df["npv_penalized_eur"] = pd.to_numeric(bar_df.get("npv_penalized_eur", 0.0), errors="coerce").fillna(0.0)
-
-fig2 = px.bar(
-    bar_df.sort_values("npv_penalized_eur", ascending=False),
-    x="initiative",
-    y="npv_penalized_eur",
-    color="selected_label",
-    title="NPV penalizado por iniciativa",
-)
-fig2.update_layout(xaxis_tickangle=-30)
-st.plotly_chart(fig2, use_container_width=True)
-
-# -----------------------------
-# AI Copilot
-# -----------------------------
-st.markdown("### 9) Copiloto IA")
-
-ai_extra_prompt = st.text_area(
-    "Instrucción opcional para la IA (p. ej., flujo de caja, riesgo regulatorio u operaciones):",
-    value="Prioriza recomendaciones accionables, con bajo riesgo de implementación y con enfoque MRV.",
-)
-
-assumptions = {
-    "horizon_years": horizon_years,
-    "discount_rate": discount_rate,
-    "co2_price_eur_per_t": co2_price,
-    "objective": objective,
-    "weights": {"w_npv": w_npv, "w_co2": w_co2, "w_strategy": w_strategy},
-}
-constraints = {"budget_eur": budget_eur, "min_co2_t_per_year": min_co2_t}
-
-if st.button("Generar informe ejecutivo IA", use_container_width=True):
-    try:
-        with st.spinner("Generando informe IA..."):
-            ai_text = generate_ai_brief(
-                provider=ai_provider,
-                api_key=ai_api_key.strip(),
-                model=ai_model.strip(),
-                mode=mode,
-                company_inputs=company_inputs,
-                assumptions=assumptions,
-                constraints=constraints,
-                summary=summary,
-                df_all=df_opt,
-                df_selected=selected_df,
-                pestel=pestel,
-                extra_prompt=ai_extra_prompt.strip(),
-            )
-        st.success("Informe IA generado.")
-        st.markdown(ai_text if ai_text else "_El modelo no devolvió contenido._")
-    except Exception as e:
-        st.error(f"Fallo en generación IA: {e}")
-
-# -----------------------------
-# Export
-# -----------------------------
-st.markdown("### 10) Exportar resultados")
-export_cols = [
-    "id",
-    "initiative_family",
-    "initiative",
-    "scope",
-    "emission_source",
-    "activity_unit",
-    "mrv_method",
-    "capex_eur",
-    "annual_opex_saving_eur",
-    "annual_co2_reduction_t",
-    "co2_value_eur_per_year",
-    "implementation_months",
-    "strategic_score_1_5",
-    "npv_eur",
-    "npv_penalized_eur",
-    "payback_years",
-    "required_info",
-    "provided_info",
-    "notes",
-    "selected",
-]
-export_cols = [c for c in export_cols if c in df_opt.columns]
-export = df_opt[export_cols].copy()
-
-st.download_button(
-    "Descargar resultados del portafolio (CSV)",
-    data=export.to_csv(index=False).encode("utf-8"),
-    file_name="portfolio_results.csv",
-    mime="text/csv",
-)
+render_tool_page()
