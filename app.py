@@ -1,4 +1,4 @@
-# app.py
+﻿# app.py
 # Industrial Decarbonization Decision Tool (TFG prototype) — with:
 # 1) Two modes: (A) Auto-propose initiatives from company inputs, (B) Upload client CSV
 # 2) PESTEL mini-analysis (rule-based)
@@ -16,6 +16,7 @@ import io
 import json
 import math
 import os
+import unicodedata
 try:
     import tomllib
 except Exception:
@@ -28,6 +29,7 @@ import plotly.express as px
 import requests
 import streamlit as st
 import pulp
+from scope2_electricity import build_scope2_ui, get_inventory_year as get_scope2_inventory_year
 
 try:
     from openai import OpenAI
@@ -166,25 +168,155 @@ MOBILE_FUEL_FACTORS_T_PER_L = {
 
 ADBLUE_FACTOR_T_PER_L = 0.0000005  # Placeholder; update if you choose to include AdBlue impact
 
-REFRIGERANTS_CATALOG = [
-    {"name": "R-410A", "gwp": 2088, "category": "HFC", "note": ""},
-    {"name": "R-134a", "gwp": 1430, "category": "HFC", "note": ""},
-    {"name": "R-404A", "gwp": 3922, "category": "HFC", "note": ""},
-    {"name": "R-407C", "gwp": 1774, "category": "HFC", "note": ""},
-    {"name": "R-32", "gwp": 675, "category": "HFC", "note": ""},
-    {"name": "R-507A", "gwp": 3985, "category": "HFC", "note": ""},
-    {"name": "R-417A", "gwp": 2346, "category": "HFC", "note": ""},
-    {"name": "R-422D", "gwp": 2729, "category": "HFC", "note": ""},
-    {"name": "R-448A", "gwp": 1387, "category": "HFO/HFC blend", "note": ""},
-    {"name": "R-449A", "gwp": 1397, "category": "HFO/HFC blend", "note": ""},
-    {"name": "R-452A", "gwp": 2141, "category": "HFO/HFC blend", "note": ""},
-    {"name": "R-1234yf", "gwp": 4, "category": "HFO", "note": ""},
-    {"name": "R-1234ze", "gwp": 7, "category": "HFO", "note": ""},
-    {"name": "R-290", "gwp": 3, "category": "HC", "note": "Propano"},
-    {"name": "R-600a", "gwp": 3, "category": "HC", "note": "Isobutano"},
-    {"name": "R-717", "gwp": 0, "category": "NH3", "note": "Amoniaco"},
-    {"name": "R-744", "gwp": 1, "category": "CO2", "note": "Dióxido de carbono"},
+SPAIN_PROVINCES = [
+    "A Coruna", "Alava", "Albacete", "Alicante", "Almeria", "Asturias", "Avila", "Badajoz",
+    "Barcelona", "Burgos", "Caceres", "Cadiz", "Cantabria", "Castellon", "Ceuta", "Ciudad Real",
+    "Cordoba", "Cuenca", "Girona", "Granada", "Guadalajara", "Guipuzcoa", "Huelva", "Huesca",
+    "Illes Balears", "Jaen", "La Rioja", "Las Palmas", "Leon", "Lleida", "Lugo", "Madrid",
+    "Malaga", "Melilla", "Murcia", "Navarra", "Ourense", "Palencia", "Pontevedra", "Salamanca",
+    "Santa Cruz de Tenerife", "Segovia", "Sevilla", "Soria", "Tarragona", "Teruel", "Toledo",
+    "Valencia", "Valladolid", "Vizcaya", "Zamora", "Zaragoza",
 ]
+
+STATIONARY_FUELS_DB_PATH = os.path.join(os.path.dirname(__file__), "data", "stationary_fuel_factors_es.csv")
+MOBILE_FUELS_DB_PATH = os.path.join(os.path.dirname(__file__), "data", "mobile_fuel_factors_es.csv")
+REFRIGERANTS_DB_PATH = os.path.join(os.path.dirname(__file__), "data", "refrigerants_pca_es.csv")
+COMMON_STATIONARY_FUEL_LABELS = {"Gasóleo C", "Gasóleo B", "Gas natural", "Fuelóleo", "LPG"}
+COMMON_MOBILE_FUEL_LABELS = {"B7", "E10"}
+STATIONARY_FUEL_MWH_PER_UNIT = {
+    "Gasóleo C": 0.0099,
+    "Gasóleo B": 0.0099,
+    "Gas natural": 0.001,
+    "Fuelóleo": 0.0106,
+    "LPG": 0.0066,
+    "Queroseno": 0.0096,
+    "Gas propano": 0.0138,
+    "Gas butano": 0.0137,
+    "Biomasa madera": 0.0042,
+    "Biomasa pellets": 0.0048,
+    "Biomasa astillas": 0.0035,
+    "Biomasa serrines virutas": 0.0041,
+    "Biomasa cáscara f. secos": 0.0046,
+    "Biomasa hueso aceituna": 0.0050,
+    "B7": 0.0099,
+    "B10": 0.0098,
+    "B20": 0.0097,
+    "B30": 0.0095,
+    "B100": 0.0092,
+    "E5": 0.0085,
+    "E10": 0.0083,
+    "E85": 0.0067,
+    "E100": 0.0059,
+}
+
+MOBILE_FUEL_MWH_PER_UNIT = {
+    "B7": 0.0099,
+    "B10": 0.0098,
+    "B20": 0.0097,
+    "B30": 0.0095,
+    "B100": 0.0092,
+    "E5": 0.0085,
+    "E10": 0.0083,
+    "E85": 0.0067,
+    "E100": 0.0059,
+    "LPG": 0.0066,
+    "CNG": 0.0133,
+    "LNG": 0.0139,
+    "AdBlue": 0.0,
+}
+
+
+def load_stationary_fuels_catalog() -> List[Dict]:
+    df = pd.read_csv(STATIONARY_FUELS_DB_PATH)
+    required_cols = {"Combustible", "Unidad", "2023", "2024"}
+    if not required_cols.issubset(df.columns):
+        raise ValueError("El catálogo de combustibles estacionarios no tiene el formato esperado.")
+    fuels = []
+    for _, row in df.iterrows():
+        label = str(row["Combustible"]).strip()
+        key = (
+            unicodedata.normalize("NFKD", label)
+            .encode("ascii", "ignore")
+            .decode("ascii")
+            .lower()
+            .replace(".", "")
+            .replace(" ", "_")
+        )
+        fuels.append(
+            {
+                "key": key,
+                "label": label,
+                "unit": str(row["Unidad"]).strip(),
+                "common": label in COMMON_STATIONARY_FUEL_LABELS,
+                "mwh_per_unit": STATIONARY_FUEL_MWH_PER_UNIT.get(label),
+                "factors_kg_per_unit": {
+                    2023: float(row["2023"]),
+                    2024: float(row["2024"]),
+                },
+            }
+        )
+    return fuels
+
+
+STATIONARY_FUELS_CATALOG = load_stationary_fuels_catalog()
+STATIONARY_FUELS_BY_KEY = {f["key"]: f for f in STATIONARY_FUELS_CATALOG}
+COMMON_STATIONARY_FUELS = [f for f in STATIONARY_FUELS_CATALOG if f.get("common")]
+
+
+def load_mobile_fuels_catalog() -> List[Dict]:
+    df = pd.read_csv(MOBILE_FUELS_DB_PATH)
+    required_cols = {"Combustible", "Tipo", "Unidad", "2023", "2024"}
+    if not required_cols.issubset(df.columns):
+        raise ValueError("El catálogo de combustibles móviles no tiene el formato esperado.")
+    fuels = []
+    for _, row in df.iterrows():
+        fuel_label = str(row["Combustible"]).strip()
+        vehicle_type = str(row["Tipo"]).strip()
+        key = (
+            unicodedata.normalize("NFKD", f"{fuel_label}_{vehicle_type}")
+            .encode("ascii", "ignore")
+            .decode("ascii")
+            .lower()
+            .replace(".", "")
+            .replace(" ", "_")
+            .replace("(", "")
+            .replace(")", "")
+            .replace("/", "_")
+            .replace("-", "_")
+        )
+        fuels.append(
+            {
+                "key": key,
+                "fuel_label": fuel_label,
+                "vehicle_type": vehicle_type,
+                "unit": str(row["Unidad"]).strip(),
+                "common": fuel_label in COMMON_MOBILE_FUEL_LABELS,
+                "mwh_per_unit": MOBILE_FUEL_MWH_PER_UNIT.get(fuel_label),
+                "factors_kg_per_unit": {2023: float(row["2023"]), 2024: float(row["2024"])},
+            }
+        )
+    return fuels
+
+
+MOBILE_FUELS_CATALOG = load_mobile_fuels_catalog()
+MOBILE_FUELS_BY_KEY = {f["key"]: f for f in MOBILE_FUELS_CATALOG}
+COMMON_MOBILE_FUELS = [f for f in MOBILE_FUELS_CATALOG if f.get("common")]
+
+
+def load_refrigerants_catalog() -> List[Dict]:
+    df = pd.read_csv(REFRIGERANTS_DB_PATH)
+    required_cols = {"Nombre", "Formula_quimica", "PCA_6AR"}
+    if not required_cols.issubset(df.columns):
+        raise ValueError("El catálogo de refrigerantes no tiene el formato esperado.")
+    out = []
+    for _, row in df.iterrows():
+        name = str(row["Nombre"]).strip()
+        out.append({"name": name, "gwp": float(row["PCA_6AR"])})
+    return out
+
+
+REFRIGERANTS_CATALOG = load_refrigerants_catalog()
+REFRIGERANTS_BY_NAME = {r["name"].upper(): r for r in REFRIGERANTS_CATALOG}
 
 
 # -----------------------------
@@ -287,6 +419,16 @@ def render_global_styles() -> None:
             background: linear-gradient(135deg, #eef5f1 0%, #f8fafc 100%);
             border: 1px solid rgba(15, 23, 42, 0.08);
             margin-top: 1rem;
+        }
+        .stButton > button[kind="primary"] {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: #ffffff;
+        }
+        .stButton > button[kind="secondary"] {
+            background: #2f855a;
+            border-color: #2f855a;
+            color: #ffffff;
         }
         </style>
         """,
@@ -393,6 +535,7 @@ def render_home_page() -> None:
     )
     if st.button("Empezar cálculo de huella", type="primary", use_container_width=True):
         st.session_state["current_page"] = "tool"
+        st.session_state["scroll_to_top"] = True
         st.rerun()
 
 
@@ -510,6 +653,52 @@ def _latest_factor(factors_by_year: Dict[int, float], year: int) -> Tuple[float,
     return float(factors_by_year[latest_year]), latest_year
 
 
+def get_stationary_fuel_factor(fuel_key: str, year: int) -> Tuple[float, int]:
+    fuel = STATIONARY_FUELS_BY_KEY.get(fuel_key)
+    if not fuel:
+        return 0.0, year
+    raw_factors = fuel.get("factors_kg_per_unit", {}) or {}
+    factors = {int(k): float(v) for k, v in raw_factors.items()}
+    return _latest_factor(factors, year)
+
+
+def get_stationary_fuel_entries(company: Dict) -> List[Dict]:
+    entries = []
+    for row in company.get("stationary_fuels", []) or []:
+        fuel_key = str(row.get("fuel_key") or "").strip()
+        quantity = _to_float_or_zero(row.get("quantity"))
+        if fuel_key and quantity > 0:
+            entries.append({"fuel_key": fuel_key, "quantity": quantity})
+    return entries
+
+
+def get_mobile_fuel_factor(fuel_key: str, year: int) -> Tuple[float, int]:
+    fuel = MOBILE_FUELS_BY_KEY.get(fuel_key)
+    if not fuel:
+        return 0.0, year
+    return _latest_factor(fuel.get("factors_kg_per_unit", {}), year)
+
+
+def get_mobile_fuel_entries(company: Dict) -> List[Dict]:
+    entries = []
+    for row in company.get("mobile_fuels", []) or []:
+        fuel_key = str(row.get("fuel_key") or "").strip()
+        quantity = _to_float_or_zero(row.get("quantity"))
+        if fuel_key and quantity > 0:
+            entries.append({"fuel_key": fuel_key, "quantity": quantity})
+    return entries
+
+
+def get_refrigerant_entries(company: Dict) -> List[Dict]:
+    entries = []
+    for row in company.get("refrigerants", []) or []:
+        name = str(row.get("name") or "").strip()
+        quantity = _to_float_or_zero(row.get("quantity"))
+        if name and quantity > 0:
+            entries.append({"name": name, "quantity": quantity})
+    return entries
+
+
 def get_market_based_electricity_factor(
     year: int,
     supplier_factor_t_per_mwh: float | None,
@@ -548,8 +737,8 @@ def get_location_based_electricity_factor(
 
 def calculate_scope2_electricity(company: Dict) -> Dict[str, float | str]:
     elec_mwh = _to_float_or_zero(company.get("annual_electricity_mwh"))
-    year = int(company.get("inventory_year") or 2024)
-    method = (company.get("electricity_method") or "market").lower()
+    year = get_scope2_inventory_year(company)
+    method = (company.get("electricity_method") or "location").lower()
 
     if elec_mwh <= 0:
         return {
@@ -559,72 +748,23 @@ def calculate_scope2_electricity(company: Dict) -> Dict[str, float | str]:
             "method": method,
         }
 
-    elec_kwh = elec_mwh * 1000.0
-
     if method == "location":
-        system = company.get("location_system") or "Peninsular"
-        factor, source = get_location_based_electricity_factor(year, system)
-        emissions_t = elec_mwh * factor
+        factor = _to_float_or_zero(company.get("scope2_location_factor_kg_kwh"))
+        emissions_kg = _to_float_or_zero(company.get("scope2_location_emissions_kg"))
         return {
-            "emissions_t": emissions_t,
+            "emissions_t": emissions_kg / 1000.0,
             "used_factor": factor,
-            "source": source,
+            "source": f"factor REE España ({year})",
             "method": "location-based",
         }
 
-    # Market-based (default)
-    supplier_factor = _to_float_or_zero(company.get("supplier_factor_t_per_mwh"))
-    supplier_known = bool(company.get("cnmc_supplier_known"))
-    base_factor, base_source = get_market_based_electricity_factor(year, supplier_factor, supplier_known)
-
-    has_gdo = bool(company.get("electricity_has_gdo"))
-    gdo_type = company.get("electricity_gdo_type") or ""
-    gdo_type = gdo_type.lower() if isinstance(gdo_type, str) else ""
-
-    gdo_coverage_kwh = _to_float_or_zero(company.get("gdo_coverage_kwh"))
-    gdo_coverage_pct = _to_float_or_zero(company.get("gdo_coverage_pct"))
-    coverage_kwh = min(elec_kwh, gdo_coverage_kwh)
-    if coverage_kwh <= 0 and gdo_coverage_pct > 0:
-        coverage_kwh = min(elec_kwh, elec_kwh * gdo_coverage_pct / 100.0)
-
-    if not has_gdo or coverage_kwh <= 0:
-        emissions_t = elec_mwh * base_factor
-        return {
-            "emissions_t": emissions_t,
-            "used_factor": base_factor,
-            "source": base_source,
-            "method": "market-based (sin GdO)",
-        }
-
-    kwh_gdo = coverage_kwh
-    kwh_rest = max(0.0, elec_kwh - kwh_gdo)
-
-    if gdo_type == "cogen":
-        cogen_factor, y = _latest_factor(CNMC_ELECTRICITY_FACTORS.get("gdo_cogen_t_per_mwh", {}), year)
-        emissions_t = (kwh_gdo / 1000.0) * cogen_factor + (kwh_rest / 1000.0) * base_factor
-        eff_factor = emissions_t / elec_mwh
-        return {
-            "emissions_t": emissions_t,
-            "used_factor": eff_factor,
-            "source": f"GdO cogeneración ({y}) + {base_source}",
-            "method": "market-based (GdO cogeneración)",
-        }
-    if gdo_type == "renewable":
-        emissions_t = (kwh_rest / 1000.0) * base_factor
-        eff_factor = emissions_t / elec_mwh
-        return {
-            "emissions_t": emissions_t,
-            "used_factor": eff_factor,
-            "source": f"GdO renovable (0) + {base_source}",
-            "method": "market-based (GdO renovable)",
-        }
-
-    emissions_t = elec_mwh * base_factor
+    factor = _to_float_or_zero(company.get("scope2_market_factor_kg_kwh"))
+    emissions_kg = _to_float_or_zero(company.get("scope2_market_emissions_kg"))
     return {
-        "emissions_t": emissions_t,
-        "used_factor": base_factor,
-        "source": f"GdO sin tipo definido -> {base_source}",
-        "method": "market-based (GdO sin tipo)",
+        "emissions_t": emissions_kg / 1000.0,
+        "used_factor": factor,
+        "source": f"comercializadoras + GdO ({year})",
+        "method": "market-based",
     }
 
 
@@ -653,88 +793,92 @@ def convert_fuel_to_emissions(fuel_key: str, quantity: float, unit: str, by_kwh:
 
 
 def calculate_scope1_stationary(company: Dict) -> Dict[str, float | Dict[str, float] | str]:
-    fuels = ["gas_natural", "gasoleo", "fueloil", "glp", "biomasa"]
+    year = int(company.get("inventory_year") or 2024)
     breakdown = {}
     total = 0.0
-    for f in fuels:
-        qty = _to_float_or_zero(company.get(f"stationary_{f}_qty"))
-        unit = company.get(f"stationary_{f}_unit") or "kWh"
-        t = convert_fuel_to_emissions(f, qty, unit, STATIONARY_FUEL_FACTORS_BY_KWH, STATIONARY_FUEL_FACTORS_BY_LITER)
-        breakdown[f] = t
-        total += t
-    return {"emissions_t": total, "breakdown": breakdown, "source": "factores combustibles estacionarios"}
+    years_used = set()
+    for entry in get_stationary_fuel_entries(company):
+        fuel = STATIONARY_FUELS_BY_KEY.get(entry["fuel_key"])
+        if not fuel:
+            continue
+        factor_kg_per_unit, factor_year = get_stationary_fuel_factor(entry["fuel_key"], year)
+        emissions_t = entry["quantity"] * factor_kg_per_unit / 1000.0
+        breakdown[fuel["label"]] = breakdown.get(fuel["label"], 0.0) + emissions_t
+        total += emissions_t
+        years_used.add(factor_year)
+
+    if not years_used:
+        source = "sin combustibles estacionarios reportados"
+    elif len(years_used) == 1:
+        source = f"catálogo local de factores para instalaciones fijas ({list(years_used)[0]})"
+    else:
+        source = f"catálogo local de factores para instalaciones fijas ({min(years_used)}-{max(years_used)})"
+    return {"emissions_t": total, "breakdown": breakdown, "source": source}
 
 
 def estimate_stationary_fuel_mwh(company: Dict) -> float:
-    fuels = ["gas_natural", "gasoleo", "fueloil", "glp", "biomasa"]
     total_mwh = 0.0
-    for f in fuels:
-        qty = _to_float_or_zero(company.get(f"stationary_{f}_qty"))
-        unit = (company.get(f"stationary_{f}_unit") or "kWh").lower()
-        if unit == "mwh":
-            total_mwh += qty
-        elif unit == "kwh":
-            total_mwh += qty / 1000.0
-        elif unit in ["l", "litros", "liters"]:
-            kwh_per_l = FUEL_CONVERSION_KWH_PER_L.get(f, 0.0)
-            total_mwh += (qty * kwh_per_l) / 1000.0
+    for entry in get_stationary_fuel_entries(company):
+        fuel = STATIONARY_FUELS_BY_KEY.get(entry["fuel_key"])
+        if not fuel:
+            continue
+        mwh_per_unit = fuel.get("mwh_per_unit")
+        if isinstance(mwh_per_unit, (int, float)) and mwh_per_unit > 0:
+            total_mwh += entry["quantity"] * float(mwh_per_unit)
     return total_mwh
 
 
 def calculate_scope1_mobile(company: Dict) -> Dict[str, float | List[dict]]:
-    rows = company.get("fleet_table") or []
+    year = int(company.get("inventory_year") or 2024)
+    rows = get_mobile_fuel_entries(company)
     total = 0.0
     details = []
     for r in rows:
-        vehicle = (r.get("vehicle_type") or "car").lower()
-        fuel = (r.get("fuel") or "").lower()
-        qty = _to_float_or_zero(r.get("quantity"))
-        unit = (r.get("unit") or "L").lower()
-        adblue_l = _to_float_or_zero(r.get("adblue_liters"))
-
-        if fuel in ["electric", "eléctrico", "electrico"]:
-            t = 0.0
-            note = "eléctrico (Scope 2)"
-        else:
-            factors = MOBILE_FUEL_FACTORS_T_PER_L.get(vehicle, MOBILE_FUEL_FACTORS_T_PER_L["car"])
-            if unit in ["kwh", "mwh"]:
-                kwh = qty * (1000.0 if unit == "mwh" else 1.0)
-                kwh_per_l = FUEL_CONVERSION_KWH_PER_L.get(fuel, 0.0)
-                liters = kwh / kwh_per_l if kwh_per_l > 0 else 0.0
-                t = liters * factors.get(fuel, 0.0)
-            else:
-                t = qty * factors.get(fuel, 0.0)
-            note = ""
-
-        adblue_t = adblue_l * ADBLUE_FACTOR_T_PER_L if adblue_l > 0 else 0.0
-        total += t + adblue_t
-        details.append({"fuel": fuel, "vehicle": vehicle, "t": t, "adblue_t": adblue_t, "note": note})
+        fuel = MOBILE_FUELS_BY_KEY.get(r["fuel_key"])
+        if not fuel:
+            continue
+        qty = r["quantity"]
+        factor_kg_per_unit, factor_year = get_mobile_fuel_factor(r["fuel_key"], year)
+        t = qty * factor_kg_per_unit / 1000.0
+        total += t
+        details.append(
+            {
+                "fuel": fuel["fuel_label"],
+                "vehicle": fuel["vehicle_type"],
+                "t": t,
+                "adblue_t": 0.0,
+                "note": f"factor {factor_kg_per_unit:.3f} kgCO2/{fuel['unit']} ({factor_year})",
+            }
+        )
 
     return {"emissions_t": total, "details": details}
 
 
 def calculate_fugitive_emissions(company: Dict) -> Dict[str, float | str | bool]:
-    refrigerant = company.get("refrigerant_selected") or ""
-    refrigerant = str(refrigerant).strip()
-    refrigerant_kg = _to_float_or_zero(company.get("refrigerant_kg"))
-    custom_gwp = _to_float_or_zero(company.get("refrigerant_custom_gwp"))
+    total = 0.0
+    found = True
+    details = []
+    for entry in get_refrigerant_entries(company):
+        name = entry["name"]
+        kg = entry["quantity"]
+        ref = REFRIGERANTS_BY_NAME.get(name.upper())
+        if not ref:
+            found = False
+            continue
+        gwp = ref["gwp"]
+        emissions_t = kg * gwp / 1000.0
+        total += emissions_t
+        details.append({"name": name, "gwp": gwp, "kg": kg, "emissions_t": emissions_t})
 
-    catalog = {r["name"].upper(): r for r in REFRIGERANTS_CATALOG}
-    if refrigerant.upper() in catalog:
-        gwp = catalog[refrigerant.upper()]["gwp"]
-        source = "catálogo interno (actualizar con F-gases)"
-        found = True
-    elif refrigerant.lower().startswith("otro") or refrigerant == "":
-        gwp = custom_gwp
-        source = "manual (usuario)"
-        found = gwp > 0
-    else:
-        gwp = custom_gwp
-        source = "manual (usuario)"
-        found = gwp > 0
-
-    emissions_t = (refrigerant_kg * gwp / 1000.0) if gwp > 0 else 0.0
-    return {"emissions_t": emissions_t, "gwp": gwp, "source": source, "found": found}
+    primary = details[0] if details else {"name": "", "gwp": 0.0}
+    return {
+        "emissions_t": total,
+        "gwp": primary["gwp"],
+        "source": "catálogo local PCA 6AR",
+        "found": found,
+        "details": details,
+        "primary_name": primary["name"],
+    }
 
 
 def get_data_quality_score(company: Dict, footprint_meta: Dict) -> Tuple[str, str]:
@@ -791,7 +935,7 @@ def calculate_company_footprint(company: Dict) -> Dict[str, float | str | bool]:
         "scope2_elec_source": scope2_electricity["source"],
         "scope2_elec_method": scope2_electricity["method"],
         "refrigerant_factor_found": scope1_fugitive["found"],
-        "refrigerant_key": company.get("refrigerant_selected") or "",
+        "refrigerant_key": scope1_fugitive.get("primary_name", ""),
         "refrigerant_gwp": scope1_fugitive["gwp"],
         "refrigerant_source": scope1_fugitive["source"],
     }
@@ -1330,7 +1474,7 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
             implementation_months=6,
             strategic_score_1_5=4,
             notes="Requiere inventario de equipos y registros de recargas (kg) para cuantificar emisiones.",
-            required_info="refrigerant_selected;kg_recharged_per_year;equipment_inventory;maintenance_logs",
+            required_info="refrigerants;kg_recharged_per_year;equipment_inventory;maintenance_logs",
             provided_info="",
             data_dependency="High",
         )
@@ -1795,32 +1939,35 @@ if st.session_state["current_page"] == "home":
     st.stop()
 
 def render_tool_page() -> None:
+    render_global_styles()
+    if st.session_state.get("scroll_to_top"):
+        st.markdown(
+            """
+            <script>
+            window.scrollTo({top: 0, behavior: 'instant'});
+            </script>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.session_state["scroll_to_top"] = False
     st.title("Herramienta de Descarbonización Industrial")
     st.markdown(
         "Plataforma para definir un plan de descarbonización empresarial: calcula huella de carbono (Alcance 1 y 2), "
         "genera contexto PESTEL con IA y propone iniciativas priorizadas."
     )
     
-    ctx_a, ctx_b = st.columns([1.3, 1.7])
-    with ctx_a:
-        st.info(
-            "**Contexto regulatorio**\n\n"
-            "Las empresas están cada vez más obligadas a medir emisiones y presentar planes de reducción "
-            "con trazabilidad y seguimiento."
+    with st.expander("Cómo funciona la herramienta", expanded=True):
+        st.markdown(
+            "1. Completa el cuestionario inicial (empresa + Alcance 1 + Alcance 2).\n"
+            "2. La app estima tu huella de carbono anual.\n"
+            "3. Puedes generar un PESTEL con IA para contexto estratégico.\n"
+            "4. Se generan iniciativas de descarbonización y puedes editarlas.\n"
+            "5. Se optimiza la cartera según presupuesto, CO₂ y NPV."
         )
-    with ctx_b:
-        with st.expander("Cómo funciona la herramienta", expanded=True):
-            st.markdown(
-                "1. Completa el cuestionario inicial (empresa + Alcance 1 + Alcance 2).\n"
-                "2. La app estima tu huella de carbono anual.\n"
-                "3. Puedes generar un PESTEL con IA para contexto estratégico.\n"
-                "4. Se generan iniciativas de descarbonización y puedes editarlas.\n"
-                "5. Se optimiza la cartera según presupuesto, CO₂ y NPV."
-            )
-            st.caption(
-                "GHG Protocol: Alcance 1 (emisiones directas), Alcance 2 (electricidad/calor comprados), "
-                "Alcance 3 (cadena de valor, explicado pero no calculado automáticamente aquí)."
-            )
+        st.caption(
+            "GHG Protocol: Alcance 1 (emisiones directas), Alcance 2 (electricidad/calor comprados), "
+            "Alcance 3 (cadena de valor, explicado pero no calculado automáticamente aquí)."
+        )
     
     with st.sidebar:
         if st.button("Volver a inicio", use_container_width=True):
@@ -1833,40 +1980,6 @@ def render_tool_page() -> None:
         st.caption("IGE EDEM")
         st.caption("Enterprise Risk Deloitte")
         mode = "A"
-    
-        st.divider()
-        st.header("Supuestos financieros")
-        horizon_years = st.slider("Horizonte del proyecto (años)", 1, 10, 5, 1)
-        discount_rate_pct = st.slider("Tasa de descuento (%)", 0.0, 25.0, 8.0, 0.25)
-        discount_rate = discount_rate_pct / 100.0
-        co2_price = st.number_input("Precio CO₂ (€/t)", min_value=0.0, value=80.0, step=5.0)
-    
-        st.divider()
-        st.header("Restricciones de optimización")
-        budget_eur = st.number_input("Presupuesto CAPEX (€)", min_value=0.0, value=10000.0, step=10000.0)
-        min_co2_t = st.number_input("Objetivo mínimo anual de CO₂ (t/año) [opcional]", min_value=0.0, value=0.0, step=10.0)
-    
-        confidence_floor = 1.0
-    
-        st.divider()
-        st.header("Objetivo")
-        st.write("Optimización ponderada: máxima reducción de CO₂ y máximo NPV total con el presupuesto.")
-        w_co2 = st.slider("Peso CO₂", 0.0, 1.0, 0.70, 0.05)
-        w_npv = st.slider("Peso NPV", 0.0, 1.0, 0.30, 0.05)
-        s = max(1e-9, w_npv + w_co2)
-        w_npv, w_co2 = w_npv / s, w_co2 / s
-        w_strategy = 0.0
-        objective = "Balanced score (NPV + CO2 + strategy)"
-    
-        st.divider()
-        st.header("Plantilla cliente")
-        st.download_button(
-            "Descargar plantilla CSV (ejemplo)",
-            data=template_csv_bytes(),
-            file_name="client_initiatives_template.csv",
-            mime="text/csv",
-            use_container_width=True,
-        )
     
         st.divider()
         st.header("Copiloto IA")
@@ -1920,49 +2033,57 @@ def render_tool_page() -> None:
     pestel: Dict[str, List[str]] = {}
     
     if mode == "A":
-        st.markdown("### 1) Cuestionario inicial para calcular la huella")
-        st.caption("Completa los subapartados para obtener una estimación anual de huella en tCO₂e.")
-        tab_company, tab_scope1, tab_scope2 = st.tabs(["Sobre la empresa", "Alcance 1", "Alcance 2"])
-    
+        st.markdown(
+            """
+            <div class="hero-panel" style="padding:1.5rem 1.4rem; margin-top:0.3rem;">
+                <div class="eyebrow">Cálculo de huella</div>
+                <div class="hero-subtitle" style="margin-bottom:0.4rem;">
+                    Completa las cuatro pestañas para estimar la huella de carbono y preparar el plan de descarbonización.
+                </div>
+                <div class="hero-text">
+                    La pantalla combina el diagnóstico de Alcance 1 y 2, los supuestos financieros y el acceso directo a PESTEL e iniciativas.
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        tab_company, tab_scope1, tab_scope2, tab_finance = st.tabs(
+            ["Sobre la empresa", "Alcance 1", "Alcance 2", "Supuestos financieros"]
+        )
+
         with tab_company:
-            c1, c2 = st.columns(2)
-            with c1:
+            intro_a, intro_b = st.columns([1.1, 1.3])
+            with intro_a:
+                st.markdown("**Datos base de la organización**")
                 company_inputs["company_name"] = st.text_input("Nombre de la organización (opcional)", value="")
                 company_inputs["cnae_sector"] = st.text_input("CNAE / Sector", value="")
-                company_inputs["country_region"] = st.text_input("País / Comunidad / Provincia", value="España")
+                company_inputs["country"] = "España"
+                st.text_input("País", value="España", disabled=True)
+                company_inputs["province"] = st.selectbox("Provincia", SPAIN_PROVINCES, index=33)
+                company_inputs["postal_code"] = st.text_input("Código postal", value="", max_chars=5)
+                company_inputs["country_region"] = f"España - {company_inputs['province']}"
                 company_inputs["inventory_year"] = st.number_input("Año de inventario (cálculo)", min_value=2000, max_value=2100, value=2024, step=1)
+                st.session_state["inventory_year"] = int(company_inputs["inventory_year"])
                 company_inputs["sector"] = company_inputs["cnae_sector"]
-            with c2:
-                st.markdown("**Evidencias y datos disponibles**")
-                company_inputs["has_invoices"] = st.checkbox("Facturas/lecturas disponibles", value=True)
-                company_inputs["has_meters"] = st.checkbox("Contadores/medición disponibles", value=False)
-                company_inputs["has_submetering"] = st.checkbox("Submetering disponible", value=False)
-                company_inputs["fuel_price_eur_mwh"] = st.number_input("Precio combustible (€/MWh)", min_value=0.0, value=0.0, step=5.0)
-                company_inputs["electricity_price_eur_mwh"] = st.number_input("Precio electricidad (€/MWh)", min_value=0.0, value=0.0, step=5.0)
-                audit_file = st.file_uploader("Subir auditoría energética o documentación soporte", type=["pdf", "xlsx", "xls", "csv"])
-                if audit_file is not None:
-                    st.session_state["energy_audit_meta"] = {
-                        "name": audit_file.name,
-                        "size": getattr(audit_file, "size", None),
-                        "type": audit_file.type,
-                    }
-                    company_inputs["has_energy_audit"] = True
-                    st.caption(f"Auditoría cargada: {audit_file.name}")
-                    if audit_file.name.lower().endswith(".csv"):
-                        try:
-                            audit_df = pd.read_csv(audit_file)
-                            st.dataframe(audit_df.head(10), use_container_width=True)
-                        except Exception:
-                            st.caption("No se pudo leer el CSV de auditoría (formato no estándar).")
-                    if audit_file.name.lower().endswith((".xlsx", ".xls")):
-                        try:
-                            audit_df = pd.read_excel(audit_file)
-                            st.dataframe(audit_df.head(10), use_container_width=True)
-                        except Exception:
-                            st.caption("No se pudo leer el Excel de auditoría (formato no estándar).")
-                else:
-                    company_inputs["has_energy_audit"] = False
-    
+                company_inputs["has_invoices"] = True
+                company_inputs["has_meters"] = False
+                company_inputs["has_submetering"] = False
+                company_inputs["fuel_price_eur_mwh"] = 0.0
+                company_inputs["electricity_price_eur_mwh"] = 0.0
+                company_inputs["has_energy_audit"] = False
+            with intro_b:
+                st.markdown(
+                    """
+                    <div class="mini-card" style="min-height:unset;">
+                        <strong>Qué hacer aquí</strong>
+                        <p>Introduce los datos básicos de la empresa y marca las medidas ya implantadas para evitar propuestas redundantes.</p>
+                        <p>Después completa Alcance 1, Alcance 2 y los supuestos financieros para ver la huella total y lanzar los módulos de IA.</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
             st.markdown("**Medidas ya implantadas**")
             if "implemented_measures_df" not in st.session_state:
                 st.session_state["implemented_measures_df"] = pd.DataFrame(
@@ -1983,146 +2104,191 @@ def render_tool_page() -> None:
                 hide_index=True,
                 column_config={
                     "estado": st.column_config.SelectboxColumn(
-                        "Estado",
+                        "Implementada",
                         options=["No", "Parcial", "Sí"],
                     )
                 },
-            )
+                )
             st.session_state["implemented_measures_df"] = measures_df
             company_inputs["implemented_measures"] = {
                 row["medida"]: row["estado"] for _, row in measures_df.iterrows()
             }
-    
+
         with tab_scope1:
             c1, c2 = st.columns(2)
             with c1:
                 st.markdown("**Combustión fija**")
-                stationary_fuels = [
-                    ("gas_natural", "Gas natural"),
-                    ("gasoleo", "Gasóleo / gasóleo C"),
-                    ("fueloil", "Fuelóleo"),
-                    ("glp", "GLP"),
-                    ("biomasa", "Biomasa"),
-                ]
-                for f_key, f_label in stationary_fuels:
-                    col_a, col_b = st.columns([2, 1])
-                    with col_a:
-                        company_inputs[f"stationary_{f_key}_qty"] = st.number_input(
-                            f"{f_label} (cantidad)",
+                st.caption("Introduce el consumo anual de los combustibles utilizados en instalaciones fijas con la unidad oficial indicada.")
+                stationary_entries = []
+
+                common_cols = st.columns(2)
+                for idx, fuel in enumerate(COMMON_STATIONARY_FUELS):
+                    with common_cols[idx % 2]:
+                        qty = st.number_input(
+                            f"{fuel['label']} ({fuel['unit']})",
                             min_value=0.0,
                             value=0.0,
                             step=100.0,
-                            key=f"{f_key}_qty",
+                            key=f"stationary_common_{fuel['key']}",
                         )
-                    with col_b:
-                        company_inputs[f"stationary_{f_key}_unit"] = st.selectbox(
-                            f"Unidad {f_label}",
-                            ["kWh", "MWh", "L"],
-                            index=1,
-                            key=f"{f_key}_unit",
-                        )
-            with c2:
-                st.markdown("**Combustión móvil (flota)**")
-                st.caption("Introduce consumos por grupos de vehículos. Vehículos eléctricos no computan en Alcance 1.")
-                if "fleet_table_df" not in st.session_state:
-                    st.session_state["fleet_table_df"] = pd.DataFrame(
-                        [
-                            {
-                                "vehicle_type": "truck",
-                                "fuel": "diesel",
-                                "quantity": 0.0,
-                                "unit": "L",
-                                "adblue_liters": 0.0,
-                                "notes": "",
-                            }
-                        ]
-                    )
-                fleet_df = st.data_editor(
-                    st.session_state["fleet_table_df"],
-                    use_container_width=True,
-                    num_rows="dynamic",
-                    hide_index=True,
-                    column_config={
-                        "vehicle_type": st.column_config.SelectboxColumn(
-                            "Tipo vehículo",
-                            options=["car", "truck"],
-                        ),
-                        "fuel": st.column_config.SelectboxColumn(
-                            "Combustible",
-                            options=["diesel", "gasoline", "glp", "electric"],
-                        ),
-                        "unit": st.column_config.SelectboxColumn(
-                            "Unidad",
-                            options=["L", "kWh", "MWh"],
-                        ),
-                    },
+                        factor_kg, factor_year = get_stationary_fuel_factor(fuel["key"], int(company_inputs.get("inventory_year") or 2024))
+                        st.caption(f"Factor {factor_year}: {factor_kg:.3f} kgCO2/{fuel['unit']}")
+                        if qty > 0:
+                            stationary_entries.append({"fuel_key": fuel["key"], "quantity": qty})
+
+                other_fuels = [f for f in STATIONARY_FUELS_CATALOG if not f.get("common")]
+                selected_other_fuels = st.multiselect(
+                    "Otros combustibles: buscar y seleccionar",
+                    options=[f["key"] for f in other_fuels],
+                    default=[],
+                    format_func=lambda key: f"{STATIONARY_FUELS_BY_KEY[key]['label']} ({STATIONARY_FUELS_BY_KEY[key]['unit']})",
                 )
-                st.session_state["fleet_table_df"] = fleet_df
-                company_inputs["fleet_table"] = fleet_df.to_dict(orient="records")
-    
-                st.markdown("**Emisiones fugitivas**")
-                refrigerant_options = [r["name"] for r in REFRIGERANTS_CATALOG] + ["Otro / personalizado"]
-                selected_refrigerant = st.selectbox("Refrigerante", refrigerant_options, index=0)
-                company_inputs["refrigerant_selected"] = selected_refrigerant
-                if selected_refrigerant == "Otro / personalizado":
-                    company_inputs["refrigerant_selected"] = st.text_input("Nombre del refrigerante", value="")
-                    company_inputs["refrigerant_custom_gwp"] = st.number_input("GWP/PCA (manual)", min_value=0.0, value=0.0, step=10.0)
-                else:
-                    company_inputs["refrigerant_custom_gwp"] = 0.0
-                company_inputs["refrigerant_kg"] = st.number_input("Kg recargados/año", min_value=0.0, value=0.0, step=10.0)
-    
-        with tab_scope2:
-            c1, c2 = st.columns(2)
-            with c1:
-                st.markdown("**Electricidad comprada**")
-                company_inputs["annual_electricity_mwh"] = st.number_input("Electricidad comprada (MWh/año)", min_value=0.0, value=0.0, step=100.0)
-                method_label = st.selectbox("Método de cálculo electricidad", ["Market-based", "Location-based"], index=0)
-                company_inputs["electricity_method"] = "market" if method_label == "Market-based" else "location"
-                st.caption("Market-based usa comercializadora/GdO. Location-based usa factor medio del sistema REE.")
-    
-                if company_inputs["electricity_method"] == "market":
-                    company_inputs["cnmc_supplier_known"] = st.checkbox("Etiqueta/factor del proveedor disponible (factura/contrato)", value=False)
-                    company_inputs["supplier_factor_t_per_mwh"] = st.number_input(
-                        "Factor CO₂ proveedor (tCO₂/MWh) [opcional]",
+                for fuel_key in selected_other_fuels:
+                    fuel = STATIONARY_FUELS_BY_KEY[fuel_key]
+                    qty = st.number_input(
+                        f"{fuel['label']} ({fuel['unit']})",
                         min_value=0.0,
                         value=0.0,
-                        step=0.01,
+                        step=100.0,
+                        key=f"stationary_other_{fuel_key}",
                     )
-                    company_inputs["supplier_name"] = st.text_input("Comercializadora (opcional)", value="")
-                    company_inputs["electricity_has_gdo"] = st.checkbox("El proveedor canjea GdO para tu consumo", value=False)
-                    company_inputs["electricity_gdo_type"] = st.selectbox(
-                        "Tipo de GdO (si aplica)",
-                        ["Ninguno/Desconocido", "Renovable", "Cogeneración"],
-                        index=0,
-                    )
-                    coverage_mode = st.radio("Cobertura GdO", ["% del consumo", "kWh cubiertos"], index=0, horizontal=True)
-                    if coverage_mode == "% del consumo":
-                        company_inputs["gdo_coverage_pct"] = st.number_input("Cobertura GdO (%)", min_value=0.0, max_value=100.0, value=0.0, step=5.0)
-                        company_inputs["gdo_coverage_kwh"] = 0.0
-                    else:
-                        company_inputs["gdo_coverage_kwh"] = st.number_input("kWh con GdO", min_value=0.0, value=0.0, step=1000.0)
-                        company_inputs["gdo_coverage_pct"] = 0.0
-                else:
-                    company_inputs["location_system"] = st.selectbox("Sistema eléctrico", ["Peninsular", "No peninsular"], index=0)
-                    company_inputs["electricity_has_gdo"] = False
-                    company_inputs["electricity_gdo_type"] = None
-                    company_inputs["cnmc_supplier_known"] = False
-                    company_inputs["supplier_factor_t_per_mwh"] = 0.0
-                    company_inputs["gdo_coverage_pct"] = 0.0
-                    company_inputs["gdo_coverage_kwh"] = 0.0
+                    factor_kg, factor_year = get_stationary_fuel_factor(fuel_key, int(company_inputs.get("inventory_year") or 2024))
+                    st.caption(f"Factor {factor_year}: {factor_kg:.3f} kgCO2/{fuel['unit']}")
+                    if qty > 0:
+                        stationary_entries.append({"fuel_key": fuel_key, "quantity": qty})
+
+                company_inputs["stationary_fuels"] = stationary_entries
+                company_inputs["fuel_type"] = ", ".join(
+                    STATIONARY_FUELS_BY_KEY[row["fuel_key"]]["label"] for row in stationary_entries
+                )
             with c2:
-                st.markdown("**Calor/vapor comprado**")
-                company_inputs["annual_purchased_heat_mwh"] = st.number_input("Calor/vapor comprado (MWh/año)", min_value=0.0, value=0.0, step=50.0)
-                company_inputs["co2_factor_heat_t_per_mwh"] = st.number_input("Factor CO₂ calor/vapor (tCO₂/MWh) [opcional]", min_value=0.0, value=0.0, step=0.01)
-    
-        st.markdown("### 2) Resultado de huella de carbono")
+                st.markdown("**Combustión móvil (flota)**")
+                st.caption("Selecciona combustible y tipo de vehículo, e introduce el consumo anual con su unidad oficial.")
+                mobile_entries = []
+                common_mobile_labels = []
+                for fuel in COMMON_MOBILE_FUELS:
+                    if fuel["fuel_label"] not in common_mobile_labels:
+                        common_mobile_labels.append(fuel["fuel_label"])
+
+                for fuel_label in common_mobile_labels:
+                    options = [f for f in COMMON_MOBILE_FUELS if f["fuel_label"] == fuel_label]
+                    selected_vehicles = st.multiselect(
+                        f"Tipo de vehículo para {fuel_label}",
+                        options=[f["key"] for f in options],
+                        default=[],
+                        format_func=lambda key: MOBILE_FUELS_BY_KEY[key]["vehicle_type"],
+                        key=f"mobile_common_vehicle_{fuel_label}",
+                    )
+                    for vehicle_key in selected_vehicles:
+                        selected = MOBILE_FUELS_BY_KEY[vehicle_key]
+                        qty = st.number_input(
+                            f"{fuel_label} · {selected['vehicle_type']} ({selected['unit']})",
+                            min_value=0.0,
+                            value=0.0,
+                            step=100.0,
+                            key=f"mobile_common_qty_{vehicle_key}",
+                        )
+                        factor_kg, factor_year = get_mobile_fuel_factor(vehicle_key, int(company_inputs.get("inventory_year") or 2024))
+                        st.caption(f"Factor {factor_year}: {factor_kg:.3f} kgCO2/{selected['unit']}")
+                        if qty > 0:
+                            mobile_entries.append({"fuel_key": vehicle_key, "quantity": qty})
+
+                other_mobile_keys = [f["key"] for f in MOBILE_FUELS_CATALOG if f["fuel_label"] not in common_mobile_labels]
+                selected_other_mobile = st.multiselect(
+                    "Otros combustibles móviles",
+                    options=other_mobile_keys,
+                    default=[],
+                    format_func=lambda key: f"{MOBILE_FUELS_BY_KEY[key]['fuel_label']} · {MOBILE_FUELS_BY_KEY[key]['vehicle_type']} ({MOBILE_FUELS_BY_KEY[key]['unit']})",
+                )
+                for fuel_key in selected_other_mobile:
+                    fuel = MOBILE_FUELS_BY_KEY[fuel_key]
+                    qty = st.number_input(
+                        f"{fuel['fuel_label']} · {fuel['vehicle_type']} ({fuel['unit']})",
+                        min_value=0.0,
+                        value=0.0,
+                        step=100.0,
+                        key=f"mobile_other_qty_{fuel_key}",
+                    )
+                    factor_kg, factor_year = get_mobile_fuel_factor(fuel_key, int(company_inputs.get("inventory_year") or 2024))
+                    st.caption(f"Factor {factor_year}: {factor_kg:.3f} kgCO2/{fuel['unit']}")
+                    if qty > 0:
+                        mobile_entries.append({"fuel_key": fuel_key, "quantity": qty})
+
+                company_inputs["mobile_fuels"] = mobile_entries
+
+                st.markdown("**Emisiones fugitivas**")
+                selected_refrigerants = st.multiselect(
+                    "Nombre del gas refrigerante",
+                    options=[r["name"] for r in REFRIGERANTS_CATALOG],
+                    default=[],
+                )
+                refrigerant_entries = []
+                for name in selected_refrigerants:
+                    qty = st.number_input(
+                        f"{name} (kg recargados/año)",
+                        min_value=0.0,
+                        value=0.0,
+                        step=10.0,
+                        key=f"refrigerant_qty_{name}",
+                    )
+                    if qty > 0:
+                        refrigerant_entries.append({"name": name, "quantity": qty})
+                company_inputs["refrigerants"] = refrigerant_entries
+
+        with tab_scope2:
+            build_scope2_ui(company_inputs)
+
+        with tab_finance:
+            f1, f2 = st.columns(2)
+            with f1:
+                st.markdown("**Supuestos económicos**")
+                horizon_years = st.slider("Horizonte del proyecto (años)", 1, 10, 5, 1)
+                discount_rate_pct = st.slider("Tasa de descuento (%)", 0.0, 25.0, 8.0, 0.25)
+                co2_price = st.number_input("Precio CO₂ (€/t)", min_value=0.0, value=80.0, step=5.0)
+                budget_eur = st.number_input("Presupuesto CAPEX (€)", min_value=0.0, value=10000.0, step=10000.0)
+                min_co2_t = st.number_input("Objetivo mínimo anual de CO₂ (t/año) [opcional]", min_value=0.0, value=0.0, step=10.0)
+            with f2:
+                st.markdown("**Restricciones técnicas para plan de mejora**")
+                company_inputs["roof_area_m2"] = st.number_input("Área disponible de cubierta (m²) [opcional]", min_value=0.0, value=0.0, step=100.0)
+                company_inputs["has_compressed_air"] = st.checkbox("Usa sistemas de aire comprimido", value=True)
+                company_inputs["waste_heat_potential"] = st.selectbox("Potencial de calor residual (aprox.)", ["Desconocido", "Bajo", "Medio", "Alto"], index=0)
+                company_inputs["has_process_heat"] = st.checkbox("Tiene calor de proceso", value=True)
+                company_inputs["heat_temp_level"] = st.selectbox("Nivel de temperatura de proceso", ["Baja", "Media", "Alta", "Desconocida"], index=3)
+                company_inputs["load_profile_known"] = st.checkbox("Perfil de carga conocido", value=False)
+
+                st.markdown("**Prioridad de optimización**")
+                st.caption("Ajusta el equilibrio entre reducción de CO₂ y rentabilidad financiera.")
+                w_co2 = st.slider("Peso CO₂", 0.0, 1.0, 0.70, 0.05)
+                w_npv = st.slider("Peso NPV", 0.0, 1.0, 0.30, 0.05)
+
+            st.markdown("**Plantilla cliente**")
+            st.download_button(
+                "Descargar plantilla CSV (ejemplo)",
+                data=template_csv_bytes(),
+                file_name="client_initiatives_template.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+
+        discount_rate = discount_rate_pct / 100.0
+        confidence_floor = 1.0
+        s = max(1e-9, w_npv + w_co2)
+        w_npv, w_co2 = w_npv / s, w_co2 / s
+        w_strategy = 0.0
+        objective = "Balanced score (NPV + CO2 + strategy)"
+
         footprint = calculate_company_footprint(company_inputs)
+        st.markdown("### Resultado de huella de carbono")
+        st.caption("Resultado actualizado con los datos introducidos en las pestañas superiores.")
+
         h1, h2, h3, h4 = st.columns(4)
         h1.metric("Alcance 1 (tCO₂e/año)", f"{footprint['scope1_t']:.1f}")
         h2.metric("Alcance 2 (tCO₂e/año)", f"{footprint['scope2_t']:.1f}")
         h3.metric("Alcance 3", "Informativo")
         h4.metric("Huella total (1+2)", f"{footprint['total_t']:.1f}")
-    
+
+        st.progress(min(1.0, footprint["total_t"] / 1000.0), text=f"Huella total estimada: {footprint['total_t']:.1f} tCO₂e/año")
+
         s1, s2, s3 = st.columns(3)
         s1.metric("A1 - Combustión fija", f"{footprint['scope1_stationary_t']:.1f}")
         s2.metric("A1 - Flota", f"{footprint['scope1_fleet_t']:.1f}")
@@ -2138,7 +2304,7 @@ def render_tool_page() -> None:
             f"(factor {footprint['used_elec_factor']:.3f} tCO₂/MWh, fuente: {footprint['scope2_elec_source']}). "
             f"Calor/vapor (factor {footprint['used_heat_factor']:.3f} tCO₂/MWh)."
         )
-        if _to_float_or_zero(company_inputs.get("refrigerant_kg")) > 0 and not footprint["refrigerant_factor_found"]:
+        if get_refrigerant_entries(company_inputs) and not footprint["refrigerant_factor_found"]:
             st.warning(
                 f"No se encontró GWP para '{footprint['refrigerant_key']}'. "
                 "La parte de fugitivas puede estar infraestimada."
@@ -2147,11 +2313,7 @@ def render_tool_page() -> None:
             st.warning("Refrigerante con GWP alto. Considera plan de sustitución y control de fugas.")
         if _to_float_or_zero(company_inputs.get("annual_electricity_mwh")) > 0 and _to_float_or_zero(footprint.get("used_elec_factor")) == 0:
             st.warning("No hay factor eléctrico válido disponible; revisa el método y los factores.")
-    
-        quality_label, quality_note = get_data_quality_score(company_inputs, footprint)
-        st.markdown("**Calidad del dato**")
-        st.write(f"{quality_label} — {quality_note}")
-    
+
         with st.expander("Cómo se calcula la huella y qué incluye cada alcance"):
             st.markdown(
                 "**Alcance 1 (directas):** combustibles en planta, flota propia y fugas de refrigerantes.\n\n"
@@ -2159,18 +2321,7 @@ def render_tool_page() -> None:
                 "**Alcance 3 (otras indirectas):** cadena de suministro, viajes, logística, uso y fin de vida. "
                 "Se explica en la herramienta, pero no se calcula automáticamente en esta versión."
             )
-    
-        st.markdown("### 3) Restricciones técnicas para plan de mejora (opcional)")
-        c4, c5 = st.columns(2)
-        with c4:
-            company_inputs["roof_area_m2"] = st.number_input("Área disponible de cubierta (m²) [opcional]", min_value=0.0, value=0.0, step=100.0)
-            company_inputs["has_compressed_air"] = st.checkbox("Usa sistemas de aire comprimido", value=True)
-        with c5:
-            company_inputs["waste_heat_potential"] = st.selectbox("Potencial de calor residual (aprox.)", ["Desconocido", "Bajo", "Medio", "Alto"], index=0)
-            company_inputs["has_process_heat"] = st.checkbox("Tiene calor de proceso", value=True)
-            company_inputs["heat_temp_level"] = st.selectbox("Nivel de temperatura de proceso", ["Baja", "Media", "Alta", "Desconocida"], index=3)
-            company_inputs["load_profile_known"] = st.checkbox("Perfil de carga conocido", value=False)
-    
+
         # Normalizar tipo de GdO
         if company_inputs.get("electricity_gdo_type") == "Ninguno/Desconocido":
             company_inputs["electricity_gdo_type"] = None
@@ -2210,9 +2361,9 @@ def render_tool_page() -> None:
         country_text = (company_inputs.get("country_region") or "").lower()
         company_inputs["eu_context"] = True if any(x in country_text for x in ["espa", "spain", "ue", "eu"]) else False
     
-        fleet_rows = company_inputs.get("fleet_table") or []
+        fleet_rows = company_inputs.get("mobile_fuels") or []
         company_inputs["has_fleet"] = any(_to_float_or_zero(r.get("quantity")) > 0 for r in fleet_rows)
-        company_inputs["has_refrigerants"] = (company_inputs.get("refrigerant_kg", 0.0) or 0.0) > 0 or bool(company_inputs.get("refrigerant_selected"))
+        company_inputs["has_refrigerants"] = len(get_refrigerant_entries(company_inputs)) > 0
     
         # Convertir ceros a None (desconocido)
         for k in [
@@ -2221,24 +2372,46 @@ def render_tool_page() -> None:
         ]:
             if isinstance(company_inputs.get(k), (int, float)) and company_inputs.get(k) == 0.0:
                 company_inputs[k] = None
-    
-        st.markdown("### 4) PESTEL (breve)")
+
+        st.markdown("### Siguiente paso")
+        action_a, action_b = st.columns(2)
+        with action_a:
+            st.markdown(
+                """
+                <div class="mini-card" style="min-height:unset;">
+                    <strong>Contexto PESTEL</strong>
+                    <p>Genera una lectura estratégica breve para entender presión regulatoria, mercado, tecnología y condicionantes externos.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        with action_b:
+            st.markdown(
+                """
+                <div class="mini-card" style="min-height:unset;">
+                    <strong>Iniciativas</strong>
+                    <p>Crea una cartera inicial de medidas de descarbonización usando la huella y los datos operativos introducidos.</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
         if "ai_pestel" not in st.session_state:
             st.session_state["ai_pestel"] = None
         if "ai_pestel_key" not in st.session_state:
             st.session_state["ai_pestel_key"] = None
-    
-        col_p_a, col_p_b = st.columns([1, 3])
+
+        col_p_a, col_p_b = st.columns(2)
         with col_p_a:
-            gen_pestel = st.button("Generar PESTEL con IA", use_container_width=True)
+            gen_pestel = st.button("Generar PESTEL con IA", use_container_width=True, type="primary")
         with col_p_b:
-            st.caption("PESTEL generado por IA usando los inputs actuales.")
-    
+            generate_ai = st.button("Generar 8 iniciativas con IA", use_container_width=True)
+
         pestel_key = json.dumps(company_inputs, sort_keys=True, ensure_ascii=False)
         if st.session_state["ai_pestel_key"] != pestel_key:
             st.session_state["ai_pestel_key"] = pestel_key
             st.session_state["ai_pestel"] = None
-    
+
         if gen_pestel:
             try:
                 with st.spinner("Generando PESTEL con IA..."):
@@ -2252,8 +2425,9 @@ def render_tool_page() -> None:
                 st.success("PESTEL generado.")
             except Exception as e:
                 st.error(f"Fallo al generar PESTEL con IA: {e}")
-    
+
         pestel = st.session_state["ai_pestel"]
+        st.markdown("### PESTEL")
         if pestel is None:
             st.info("PESTEL no generado. Puedes continuar con las iniciativas si quieres.")
         if pestel:
@@ -2264,19 +2438,13 @@ def render_tool_page() -> None:
                     st.subheader(k)
                     for bullet in pestel[k]:
                         st.write(f"- {bullet}")
-    
-        st.markdown("### 5) Iniciativas propuestas (editables antes de optimizar)")
+
+        st.markdown("### Iniciativas propuestas")
         n_inits = 8
-    
+
         if "ai_initiatives" not in st.session_state:
             st.session_state["ai_initiatives"] = None
-    
-        col_ai_a, col_ai_b = st.columns([1, 3])
-        with col_ai_a:
-            generate_ai = st.button("Generar 8 iniciativas con IA", use_container_width=True)
-        with col_ai_b:
-            st.caption("Usa todos los inputs de empresa para generar la tabla normativa completa.")
-    
+
         if generate_ai:
             try:
                 with st.spinner("Generando iniciativas con IA..."):
@@ -2291,7 +2459,7 @@ def render_tool_page() -> None:
                 st.success("Iniciativas generadas.")
             except Exception as e:
                 st.error(f"Fallo al generar iniciativas con IA: {e}")
-    
+
         if st.session_state["ai_initiatives"] is None:
             st.info("Pulsa 'Generar 8 iniciativas con IA' para crear la lista.")
             st.stop()

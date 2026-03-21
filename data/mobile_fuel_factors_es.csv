@@ -1,0 +1,50 @@
+Combustible,Tipo,Unidad,2023,2024
+E5,Turismos (M1),l,2.249,2.249
+E5,Furgonetas y furgones (N1),l,2.246,2.246
+E5,Camiones (N2 N3),l,2.254,2.254
+E5,Ciclomotores (L1e L2e),l,2.308,2.308
+E5,Motocicletas (L3e-L7e),l,2.337,2.336
+E10,Turismos (M1),l,2.131,2.131
+E10,Furgonetas y furgones (N1),l,2.128,2.128
+E10,Camiones (N2 N3),l,2.136,2.136
+E10,Ciclomotores (L1e L2e),l,2.191,2.191
+E10,Motocicletas (L3e-L7e),l,2.220,2.219
+E85,Turismos (M1),l,0.371,0.371
+E85,Furgonetas y furgones (N1),l,0.368,0.368
+E85,Camiones (N2 N3),l,0.376,0.376
+E85,Ciclomotores (L1e L2e),l,0.430,0.430
+E85,Motocicletas (L3e-L7e),l,0.459,0.458
+E100,Turismos (M1),l,0.019,0.019
+E100,Furgonetas y furgones (N1),l,0.016,0.016
+E100,Camiones (N2 N3),l,0.024,0.024
+E100,Ciclomotores (L1e L2e),l,0.078,0.078
+E100,Motocicletas (L3e-L7e),l,0.107,0.106
+B7,Turismos (M1),l,2.516,2.517
+B7,Furgonetas y furgones (N1),l,2.505,2.505
+B7,Camiones (N2 N3),l,2.520,2.520
+B7,Autobuses (M2 M3),l,2.506,2.507
+B10,Turismos (M1),l,2.441,2.441
+B10,Furgonetas y furgones (N1),l,2.429,2.429
+B10,Camiones (N2 N3),l,2.445,2.445
+B10,Autobuses (M2 M3),l,2.431,2.432
+B20,Turismos (M1),l,2.189,2.189
+B20,Furgonetas y furgones (N1),l,2.177,2.177
+B20,Camiones (N2 N3),l,2.193,2.193
+B20,Autobuses (M2 M3),l,2.179,2.180
+B30,Turismos (M1),l,1.937,1.937
+B30,Furgonetas y furgones (N1),l,1.925,1.925
+B30,Camiones (N2 N3),l,1.940,1.941
+B30,Autobuses (M2 M3),l,1.926,1.928
+B100,Turismos (M1),l,0.172,0.172
+B100,Furgonetas y furgones (N1),l,0.160,0.160
+B100,Camiones (N2 N3),l,0.176,0.176
+B100,Autobuses (M2 M3),l,0.162,0.163
+LPG,Turismos (M1),l,1.661,1.661
+CNG,Turismos (M1),kg,2.769,2.769
+CNG,Camiones (N2 N3),kg,2.731,2.731
+CNG,Autobuses (M2 M3),kg,2.800,2.800
+LNG,Camiones (N2 N3),kg,2.731,2.731
+AdBlue,Turismos (M1),l,0.260,0.260
+AdBlue,Furgonetas y furgones (N1),l,0.260,0.260
+AdBlue,Camiones (N2 N3),l,0.260,0.260
+AdBlue,Autobuses (M2 M3),l,0.260,0.260
