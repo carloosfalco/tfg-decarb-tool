@@ -557,8 +557,6 @@ def build_scope2_ui(company_inputs: Dict) -> Dict:
         supplier_options = _supplier_options(year)
         if "scope2_supplier_count" not in st.session_state:
             st.session_state["scope2_supplier_count"] = 1
-        if st.button("Añadir consumo", use_container_width=False, key="scope2_add_supplier"):
-            st.session_state["scope2_supplier_count"] += 1
 
         rows: List[Dict] = []
         for idx in range(st.session_state["scope2_supplier_count"]):
@@ -595,6 +593,10 @@ def build_scope2_ui(company_inputs: Dict) -> Dict:
                     rows.append({"supplier_name": pretty_name, "consumo_mwh": consumo_mwh})
             elif consumo_mwh > 0:
                 st.warning("Selecciona una comercializadora válida para calcular emisiones.")
+
+            if idx == 0 and st.button("Añadir consumo", use_container_width=False, key="scope2_add_supplier"):
+                st.session_state["scope2_supplier_count"] += 1
+                st.rerun()
 
         has_gdo = st.checkbox("Tu electricidad tiene GdO", value=False, key="scope2_has_gdo")
         pct_gdo = 0.0
