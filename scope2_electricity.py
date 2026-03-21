@@ -492,16 +492,7 @@ def build_scope2_ui(company_inputs: Dict) -> Dict:
         unsafe_allow_html=True,
     )
 
-    header_left, header_right = st.columns([1.7, 1.0])
-    with header_left:
-        st.markdown(
-            """
-            <div class="scope2-card">
-                <div class="scope2-chip">Scope 2 · Electricidad comprada</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    _, header_right = st.columns([1.7, 1.0])
 
     method_label = st.radio(
         "Método de cálculo",
@@ -679,7 +670,7 @@ def build_scope2_ui(company_inputs: Dict) -> Dict:
 
 
     st.divider()
-    buys_heat = st.checkbox("Compras calor o vapor", value=False, key="scope2_buys_heat")
+    buys_heat = st.checkbox("Se compra calor o vapor", value=False, key="scope2_buys_heat")
     if buys_heat:
         st.markdown("**Calor/vapor comprado**")
         heat_a, heat_b = st.columns(2)
