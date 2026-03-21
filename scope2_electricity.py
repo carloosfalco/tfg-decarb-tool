@@ -439,6 +439,26 @@ def _supplier_options(year: int) -> List[str]:
     return options.tolist()
 
 
+def _sync_gdo_from_pct() -> None:
+    total_mwh = float(st.session_state.get("scope2_gdo_total_mwh", 0.0) or 0.0)
+    pct = min(100.0, max(0.0, float(st.session_state.get("scope2_gdo_pct_input", 0.0) or 0.0)))
+    st.session_state["scope2_gdo_pct_input"] = pct
+    st.session_state["scope2_gdo_mwh_input"] = total_mwh * pct / 100.0 if total_mwh > 0 else 0.0
+
+
+def _sync_gdo_from_mwh() -> None:
+    total_mwh = float(st.session_state.get("scope2_gdo_total_mwh", 0.0) or 0.0)
+    gdo_mwh = max(0.0, float(st.session_state.get("scope2_gdo_mwh_input", 0.0) or 0.0))
+    if total_mwh > 0:
+        gdo_mwh = min(total_mwh, gdo_mwh)
+        pct = gdo_mwh / total_mwh * 100.0
+    else:
+        gdo_mwh = 0.0
+        pct = 0.0
+    st.session_state["scope2_gdo_mwh_input"] = gdo_mwh
+    st.session_state["scope2_gdo_pct_input"] = pct
+
+
 def build_scope2_ui(company_inputs: Dict) -> Dict:
     year = get_inventory_year(company_inputs)
     factor_ree = get_location_factor(year)
@@ -472,16 +492,16 @@ def build_scope2_ui(company_inputs: Dict) -> Dict:
         unsafe_allow_html=True,
     )
 
-    st.markdown(
-        """
-        <div class="scope2-card">
-            <div class="scope2-chip">Scope 2 · Electricidad comprada</div>
-            <div class="scope2-muted">Define el método de cálculo y registra tus consumos eléctricos con una interfaz simplificada.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.caption(f"Año aplicado: {year} (heredado de Datos base de la organización)")
+    header_left, header_right = st.columns([1.7, 1.0])
+    with header_left:
+        st.markdown(
+            """
+            <div class="scope2-card">
+                <div class="scope2-chip">Scope 2 · Electricidad comprada</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     method_label = st.radio(
         "Método de cálculo",
@@ -525,10 +545,22 @@ def build_scope2_ui(company_inputs: Dict) -> Dict:
             }
         )
 
-        st.markdown("### Resultados")
-        c1, c2 = st.columns(2)
-        c1.metric("Consumo total (MWh)", f"{consumo_mwh:,.1f}")
-        c2.metric("Emisiones Scope 2 electricidad (location-based)", f"{emisiones_lb_kg:,.0f} kg CO2e")
+        with header_right:
+            if consumo_mwh > 0:
+                market_equivalent_kg = emisiones_lb_kg
+                st.markdown(
+                    f"""
+                    <div style="border:1px solid rgba(15,23,42,0.10); border-radius:14px; padding:0.9rem 1rem; background:#f8fbff;">
+                        <div style="font-size:0.9rem; font-weight:600; margin-bottom:0.35rem;">Comparativa market-based</div>
+                        <div style="font-size:0.85rem; color:#475569;">Equivalente market-based: {market_equivalent_kg:,.0f} kg CO2e</div>
+                        <div style="font-size:0.85rem; color:#475569;">Factor REE: {factor_ree:.3f} kg CO2e/kWh</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+        if consumo_mwh > 0:
+            st.metric("Emisiones Scope 2 electricidad (location-based)", f"{emisiones_lb_kg:,.0f} kg CO2e")
 
     else:
         supplier_options = _supplier_options(year)
@@ -539,14 +571,8 @@ def build_scope2_ui(company_inputs: Dict) -> Dict:
 
         rows: List[Dict] = []
         for idx in range(st.session_state["scope2_supplier_count"]):
-            st.markdown(
-                f"""
-                <div class="scope2-card" style="padding:0.8rem 0.9rem;">
-                    <div class="scope2-chip">Consumo {idx + 1}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            if idx > 0:
+                st.markdown("---")
             col_a, col_b = st.columns([1.6, 1.0])
             with col_a:
                 supplier_name = st.selectbox(
@@ -582,69 +608,44 @@ def build_scope2_ui(company_inputs: Dict) -> Dict:
         has_gdo = st.checkbox("Tu electricidad tiene GdO", value=False, key="scope2_has_gdo")
         pct_gdo = 0.0
         gdo_mwh = 0.0
+        market = calc_market_emissions_multi(rows, 0.0)
+        total_mwh_for_gdo = market["consumo_total_mwh"]
+        st.session_state["scope2_gdo_total_mwh"] = total_mwh_for_gdo
         if has_gdo:
-            market = calc_market_emissions_multi(rows, pct_gdo)
-            total_mwh_for_gdo = market["consumo_total_mwh"]
-            prev_pct = st.session_state.get("scope2_gdo_prev_pct", 0.0)
-            prev_mwh = st.session_state.get("scope2_gdo_prev_mwh", 0.0)
+            if "scope2_gdo_pct_input" not in st.session_state:
+                st.session_state["scope2_gdo_pct_input"] = 0.0
+            if "scope2_gdo_mwh_input" not in st.session_state:
+                st.session_state["scope2_gdo_mwh_input"] = 0.0
 
             gdo_cols = st.columns(2)
             with gdo_cols[0]:
-                pct_gdo = st.number_input(
+                st.number_input(
                     "Porcentaje con GdO (%)",
                     min_value=0.0,
                     max_value=100.0,
-                    value=float(st.session_state.get("scope2_pct_gdo_sync", 0.0)),
                     step=5.0,
-                    key="scope2_pct_gdo_sync",
+                    key="scope2_gdo_pct_input",
+                    on_change=_sync_gdo_from_pct,
                 )
             with gdo_cols[1]:
-                gdo_mwh = st.number_input(
+                st.number_input(
                     "MWh con GdO",
                     min_value=0.0,
-                    value=float(st.session_state.get("scope2_gdo_mwh_sync", 0.0)),
                     step=10.0,
-                    key="scope2_gdo_mwh_sync",
+                    key="scope2_gdo_mwh_input",
+                    on_change=_sync_gdo_from_mwh,
                 )
-
-            pct_changed = pct_gdo != prev_pct
-            mwh_changed = gdo_mwh != prev_mwh
-
-            if total_mwh_for_gdo > 0:
-                if pct_changed and not mwh_changed:
-                    pct_gdo = min(100.0, max(0.0, pct_gdo))
-                    gdo_mwh = total_mwh_for_gdo * pct_gdo / 100.0
-                    st.session_state["scope2_gdo_mwh_sync"] = gdo_mwh
-                elif mwh_changed and not pct_changed:
-                    gdo_mwh = min(total_mwh_for_gdo, max(0.0, gdo_mwh))
-                    pct_gdo = (gdo_mwh / total_mwh_for_gdo) * 100.0 if total_mwh_for_gdo > 0 else 0.0
-                    st.session_state["scope2_pct_gdo_sync"] = pct_gdo
-                else:
-                    pct_gdo = min(100.0, max(0.0, pct_gdo))
-                    gdo_mwh = min(total_mwh_for_gdo, max(0.0, total_mwh_for_gdo * pct_gdo / 100.0))
-                    st.session_state["scope2_gdo_mwh_sync"] = gdo_mwh
-                    st.session_state["scope2_pct_gdo_sync"] = pct_gdo
-            else:
-                pct_gdo = 0.0
-                gdo_mwh = 0.0
-                st.session_state["scope2_gdo_mwh_sync"] = 0.0
-                st.session_state["scope2_pct_gdo_sync"] = 0.0
-
-            st.session_state["scope2_gdo_prev_pct"] = pct_gdo
-            st.session_state["scope2_gdo_prev_mwh"] = gdo_mwh
+            pct_gdo = float(st.session_state.get("scope2_gdo_pct_input", 0.0) or 0.0)
+            gdo_mwh = float(st.session_state.get("scope2_gdo_mwh_input", 0.0) or 0.0)
         else:
-            st.session_state["scope2_gdo_prev_pct"] = 0.0
-            st.session_state["scope2_gdo_prev_mwh"] = 0.0
-            st.session_state["scope2_gdo_mwh_sync"] = 0.0
-            st.session_state["scope2_pct_gdo_sync"] = 0.0
+            st.session_state.pop("scope2_gdo_pct_input", None)
+            st.session_state.pop("scope2_gdo_mwh_input", None)
 
         market = calc_market_emissions_multi(rows, pct_gdo)
         for error in market["errors"]:
             st.error(error)
         for note in market["notes"]:
             st.info(note)
-        if market["consumo_total_mwh"] <= 0:
-            st.warning("Si eliges market-based, necesitas al menos una comercializadora válida con consumo > 0.")
 
         emisiones_lb_kg = calc_location_emissions(market["consumo_total_mwh"], factor_ree)
         diff_abs_kg = market["emisiones_ajustadas_kg"] - emisiones_lb_kg
@@ -662,24 +663,20 @@ def build_scope2_ui(company_inputs: Dict) -> Dict:
             }
         )
 
-        st.markdown("### Resultados")
-        left_box, right_metrics = st.columns([1.05, 1.95])
-        with left_box:
-            st.markdown(
-                f"""
-                <div style="border:1px solid rgba(15,23,42,0.10); border-radius:14px; padding:0.9rem 1rem; background:#f8fbff;">
-                    <div style="font-size:0.9rem; font-weight:600; margin-bottom:0.35rem;">Comparativa location-based</div>
-                    <div style="font-size:0.85rem; color:#475569;">Location-based: {emisiones_lb_kg:,.0f} kg CO2e</div>
-                    <div style="font-size:0.85rem; color:#475569;">Diferencia absoluta: {diff_abs_kg:,.0f} kg CO2e</div>
-                    <div style="font-size:0.85rem; color:#475569;">Diferencia porcentual: {diff_pct:,.1f}%</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-        with right_metrics:
-            r1, r2 = st.columns(2)
-            r1.metric("Emisiones Scope 2 electricidad (market-based)", f"{market['emisiones_ajustadas_kg']:,.0f} kg CO2e")
-            r2.metric("Consumo total (MWh)", f"{market['consumo_total_mwh']:,.1f}")
+        with header_right:
+            if market["consumo_total_mwh"] > 0:
+                st.markdown(
+                    f"""
+                    <div style="border:1px solid rgba(15,23,42,0.10); border-radius:14px; padding:0.9rem 1rem; background:#f8fbff;">
+                        <div style="font-size:0.9rem; font-weight:600; margin-bottom:0.35rem;">Comparativa location-based</div>
+                        <div style="font-size:0.85rem; color:#475569;">Location-based: {emisiones_lb_kg:,.0f} kg CO2e</div>
+                        <div style="font-size:0.85rem; color:#475569;">Diferencia absoluta: {diff_abs_kg:,.0f} kg CO2e</div>
+                        <div style="font-size:0.85rem; color:#475569;">Diferencia porcentual: {diff_pct:,.1f}%</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
 
     st.divider()
     buys_heat = st.checkbox("Compras calor o vapor", value=False, key="scope2_buys_heat")

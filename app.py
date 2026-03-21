@@ -399,6 +399,60 @@ def render_global_styles() -> None:
             background: #f8fbf9;
             border-left: 4px solid #436850;
         }
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 0.7rem;
+            margin-bottom: 1rem;
+        }
+        .stTabs [data-baseweb="tab"] {
+            font-size: 1.28rem;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            padding: 1rem 1.35rem;
+            border-radius: 16px 16px 0 0;
+        }
+        .stTabs [aria-selected="true"] {
+            background: #eef5f1;
+            color: #1f4d3a;
+        }
+        .result-hero {
+            padding: 1.35rem 1.4rem;
+            border-radius: 20px;
+            border: 1px solid rgba(15, 23, 42, 0.10);
+            background: linear-gradient(135deg, #f7faf8 0%, #eef5f1 100%);
+            margin-bottom: 1rem;
+        }
+        .result-overline {
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #436850;
+            margin-bottom: 0.45rem;
+        }
+        .result-total {
+            font-size: 2.4rem;
+            line-height: 1;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 0.35rem;
+        }
+        .result-subtle {
+            font-size: 0.95rem;
+            color: #475569;
+        }
+        .result-card {
+            padding: 1rem 1rem 0.9rem;
+            border-radius: 16px;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            background: #ffffff;
+            box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+            margin-bottom: 1rem;
+        }
+        .result-card h4 {
+            margin: 0 0 0.35rem;
+            font-size: 1rem;
+            color: #0f172a;
+        }
         .method-card { padding: 1rem; min-height: 175px; background: #fcfdfc; }
         .step-card { padding: 1rem; min-height: 150px; background: #f7f9fb; }
         .step-number {
@@ -1675,6 +1729,204 @@ def template_csv_bytes() -> bytes:
     return example.to_csv(index=False).encode("utf-8")
 
 
+def render_tab_intro(title: str, text: str) -> None:
+    st.markdown(
+        f"""
+        <div class="mini-card" style="min-height:unset; margin-bottom:1rem;">
+            <strong>{title}</strong>
+            <p style="margin:0.35rem 0 0;">{text}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _format_optional_summary(value: Optional[float], unit: str, decimals: int = 1) -> str:
+    if value is None:
+        return "No definido"
+    return f"{value:,.{decimals}f} {unit}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _parse_optional_nonnegative_number(raw_value: str, field_label: str) -> Optional[float]:
+    text = (raw_value or "").strip()
+    if not text:
+        return None
+    normalized = text.replace(".", "").replace(",", ".")
+    try:
+        value = float(normalized)
+    except ValueError:
+        st.warning(f"{field_label}: introduce un número válido.")
+        return None
+    if value < 0:
+        st.warning(f"{field_label}: no se permiten valores negativos.")
+        return None
+    return value
+
+
+def build_financial_assumptions_ui() -> Dict[str, float]:
+    st.markdown("**Supuestos financieros**")
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        horizon_years = int(
+            st.number_input(
+                "Horizonte del proyecto (años)",
+                min_value=1,
+                max_value=20,
+                value=int(st.session_state.get("horizon_years", 5)),
+                step=1,
+                help="Determina durante cuántos años se acumulan ahorros y flujos del portfolio.",
+            )
+        )
+    with col_b:
+        discount_rate_pct = float(
+            st.number_input(
+                "Tasa de descuento (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=float(st.session_state.get("discount_rate_pct", 8.0)),
+                step=0.25,
+                format="%.2f",
+                help="Representa la rentabilidad mínima o coste de capital exigido por la empresa.",
+            )
+        )
+    with col_c:
+        carbon_price_eur_t = float(
+            st.number_input(
+                "Precio CO2 (€/t)",
+                min_value=0.0,
+                value=float(st.session_state.get("carbon_price_eur_t", 80.0)),
+                step=5.0,
+                help="Se usa para monetizar la reducción anual de emisiones cuando aplique.",
+            )
+        )
+
+    st.session_state["horizon_years"] = horizon_years
+    st.session_state["discount_rate_pct"] = discount_rate_pct
+    st.session_state["carbon_price_eur_t"] = carbon_price_eur_t
+    return {
+        "horizon_years": horizon_years,
+        "discount_rate_pct": discount_rate_pct,
+        "carbon_price_eur_t": carbon_price_eur_t,
+    }
+
+
+def build_investment_criteria_ui() -> Dict[str, Optional[float]]:
+    st.markdown("**Criterios de inversión**")
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        capex_budget_eur = float(
+            st.number_input(
+                "Presupuesto CAPEX (€)",
+                min_value=0.0,
+                value=float(st.session_state.get("capex_budget_eur", 10000.0)),
+                step=10000.0,
+                help="Actúa como restricción presupuestaria del portfolio de medidas.",
+            )
+        )
+    with col_b:
+        min_co2_raw = st.text_input(
+            "Objetivo mínimo anual de CO2 (t/año) [opcional]",
+            value=st.session_state.get("min_co2_target_tpy_input", ""),
+            placeholder="Ej. 50",
+            help="Déjalo vacío si no quieres imponer un mínimo anual de reducción en la optimización.",
+        )
+    with col_c:
+        max_payback_raw = st.text_input(
+            "Payback máximo aceptable (años) [opcional]",
+            value=st.session_state.get("max_payback_years_input", ""),
+            placeholder="Ej. 4",
+            help="Se guarda para usarlo como criterio de filtrado o priorización del portfolio.",
+        )
+
+    min_co2_target_tpy = _parse_optional_nonnegative_number(
+        min_co2_raw, "Objetivo mínimo anual de CO2"
+    )
+    max_payback_years = _parse_optional_nonnegative_number(
+        max_payback_raw, "Payback máximo aceptable"
+    )
+
+    st.session_state["capex_budget_eur"] = capex_budget_eur
+    st.session_state["min_co2_target_tpy_input"] = min_co2_raw
+    st.session_state["max_payback_years_input"] = max_payback_raw
+    st.session_state["min_co2_target_tpy"] = min_co2_target_tpy
+    st.session_state["max_payback_years"] = max_payback_years
+
+    return {
+        "capex_budget_eur": capex_budget_eur,
+        "min_co2_target_tpy": min_co2_target_tpy,
+        "max_payback_years": max_payback_years,
+    }
+
+
+def build_financial_summary_ui(financials: Dict[str, Optional[float]]) -> None:
+    st.markdown("**Resumen financiero**")
+    st.markdown(
+        f"""
+        <div class="mini-card" style="min-height:unset;">
+            <p style="margin:0 0 0.35rem;"><strong>Horizonte:</strong> {int(financials["horizon_years"])} años</p>
+            <p style="margin:0 0 0.35rem;"><strong>Tasa de descuento:</strong> {financials["discount_rate_pct"]:.2f} %</p>
+            <p style="margin:0 0 0.35rem;"><strong>Precio CO2:</strong> {financials["carbon_price_eur_t"]:,.0f} €/t</p>
+            <p style="margin:0 0 0.35rem;"><strong>Presupuesto CAPEX:</strong> {financials["capex_budget_eur"]:,.0f} €</p>
+            <p style="margin:0 0 0.35rem;"><strong>Objetivo CO2:</strong> {_format_optional_summary(financials["min_co2_target_tpy"], "t/año")}</p>
+            <p style="margin:0;"><strong>Payback máximo:</strong> {_format_optional_summary(financials["max_payback_years"], "años")}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_footprint_results(footprint: Dict[str, Any]) -> None:
+    st.markdown(
+        f"""
+        <div class="result-hero">
+            <div class="result-overline">Resultado de huella de carbono</div>
+            <div class="result-total">{footprint['total_t']:.1f} tCO₂e/año</div>
+            <div class="result-subtle">
+                Alcance 1: {footprint['scope1_t']:.1f} tCO₂e/año ·
+                Alcance 2: {footprint['scope2_t']:.1f} tCO₂e/año ·
+                Alcance 3: no considerado
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.progress(
+        min(1.0, footprint["total_t"] / 1000.0),
+        text=f"Huella total estimada: {footprint['total_t']:.1f} tCO₂e/año",
+    )
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown(
+            """
+            <div class="result-card">
+                <h4>Alcance 1</h4>
+                <div class="result-subtle">Emisiones directas generadas por la actividad y los equipos propios.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        s1, s2, s3 = st.columns(3)
+        s1.metric("Combustión fija", f"{footprint['scope1_stationary_t']:.1f} t")
+        s2.metric("Flota", f"{footprint['scope1_fleet_t']:.1f} t")
+        s3.metric("Fugitivas", f"{footprint['scope1_fugitive_t']:.1f} t")
+
+    with col_b:
+        st.markdown(
+            """
+            <div class="result-card">
+                <h4>Alcance 2</h4>
+                <div class="result-subtle">Emisiones indirectas ligadas a la energía comprada por la organización.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        e1, e2 = st.columns(2)
+        e1.metric("Electricidad", f"{footprint['scope2_elec_t']:.1f} t")
+        e2.metric("Calor/vapor", f"{footprint['scope2_heat_t']:.1f} t")
+
+
 # -----------------------------
 # AI helpers
 # -----------------------------
@@ -1951,10 +2203,6 @@ def render_tool_page() -> None:
         )
         st.session_state["scroll_to_top"] = False
     st.title("Herramienta de Descarbonización Industrial")
-    st.markdown(
-        "Plataforma para definir un plan de descarbonización empresarial: calcula huella de carbono (Alcance 1 y 2), "
-        "genera contexto PESTEL con IA y propone iniciativas priorizadas."
-    )
     
     with st.expander("Cómo funciona la herramienta", expanded=True):
         st.markdown(
@@ -2033,88 +2281,80 @@ def render_tool_page() -> None:
     pestel: Dict[str, List[str]] = {}
     
     if mode == "A":
-        st.markdown(
-            """
-            <div class="hero-panel" style="padding:1.5rem 1.4rem; margin-top:0.3rem;">
-                <div class="eyebrow">Cálculo de huella</div>
-                <div class="hero-subtitle" style="margin-bottom:0.4rem;">
-                    Completa las cuatro pestañas para estimar la huella de carbono y preparar el plan de descarbonización.
-                </div>
-                <div class="hero-text">
-                    La pantalla combina el diagnóstico de Alcance 1 y 2, los supuestos financieros y el acceso directo a PESTEL e iniciativas.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
         tab_company, tab_scope1, tab_scope2, tab_finance = st.tabs(
             ["Sobre la empresa", "Alcance 1", "Alcance 2", "Supuestos financieros"]
         )
 
         with tab_company:
-            intro_a, intro_b = st.columns([1.1, 1.3])
-            with intro_a:
-                st.markdown("**Datos base de la organización**")
+            render_tab_intro(
+                "Sobre la empresa",
+                "Introduce los datos base de la organización y marca las medidas ya implantadas para personalizar el diagnóstico.",
+            )
+            st.markdown("**Datos base de la organización**")
+            row_1a, row_1b, row_1c = st.columns([1.4, 1.1, 0.8])
+            with row_1a:
                 company_inputs["company_name"] = st.text_input("Nombre de la organización (opcional)", value="")
+            with row_1b:
                 company_inputs["cnae_sector"] = st.text_input("CNAE / Sector", value="")
-                company_inputs["country"] = "España"
-                st.text_input("País", value="España", disabled=True)
-                company_inputs["province"] = st.selectbox("Provincia", SPAIN_PROVINCES, index=33)
-                company_inputs["postal_code"] = st.text_input("Código postal", value="", max_chars=5)
-                company_inputs["country_region"] = f"España - {company_inputs['province']}"
+            with row_1c:
                 company_inputs["inventory_year"] = st.number_input("Año de inventario (cálculo)", min_value=2000, max_value=2100, value=2024, step=1)
                 st.session_state["inventory_year"] = int(company_inputs["inventory_year"])
-                company_inputs["sector"] = company_inputs["cnae_sector"]
-                company_inputs["has_invoices"] = True
-                company_inputs["has_meters"] = False
-                company_inputs["has_submetering"] = False
-                company_inputs["fuel_price_eur_mwh"] = 0.0
-                company_inputs["electricity_price_eur_mwh"] = 0.0
-                company_inputs["has_energy_audit"] = False
-            with intro_b:
-                st.markdown(
-                    """
-                    <div class="mini-card" style="min-height:unset;">
-                        <strong>Qué hacer aquí</strong>
-                        <p>Introduce los datos básicos de la empresa y marca las medidas ya implantadas para evitar propuestas redundantes.</p>
-                        <p>Después completa Alcance 1, Alcance 2 y los supuestos financieros para ver la huella total y lanzar los módulos de IA.</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+
+            company_inputs["country"] = "España"
+            row_2a, row_2b, row_2c = st.columns([0.9, 1.1, 0.8])
+            with row_2a:
+                st.text_input("País", value="España", disabled=True)
+            with row_2b:
+                company_inputs["province"] = st.selectbox("Provincia", SPAIN_PROVINCES, index=33)
+            with row_2c:
+                company_inputs["postal_code"] = st.text_input("Código postal", value="", max_chars=5)
+            company_inputs["country_region"] = f"España - {company_inputs['province']}"
+            company_inputs["sector"] = company_inputs["cnae_sector"]
+            company_inputs["has_invoices"] = True
+            company_inputs["has_meters"] = False
+            company_inputs["has_submetering"] = False
+            company_inputs["fuel_price_eur_mwh"] = 0.0
+            company_inputs["electricity_price_eur_mwh"] = 0.0
+            company_inputs["has_energy_audit"] = False
 
             st.markdown("**Medidas ya implantadas**")
-            if "implemented_measures_df" not in st.session_state:
-                st.session_state["implemented_measures_df"] = pd.DataFrame(
-                    [
-                        {"medida": "LED", "estado": "No"},
-                        {"medida": "GdO", "estado": "No"},
-                        {"medida": "Paneles solares", "estado": "No"},
-                        {"medida": "Flota eléctrica", "estado": "No"},
-                        {"medida": "Variadores de frecuencia", "estado": "No"},
-                        {"medida": "EMS / submetering", "estado": "No"},
-                        {"medida": "Recuperación de calor", "estado": "No"},
-                        {"medida": "Programa de fugas de aire comprimido", "estado": "No"},
-                    ]
-                )
-            measures_df = st.data_editor(
-                st.session_state["implemented_measures_df"],
-                use_container_width=True,
-                hide_index=True,
-                column_config={
-                    "estado": st.column_config.SelectboxColumn(
-                        "Implementada",
-                        options=["No", "Parcial", "Sí"],
+            st.caption("Marca solo las soluciones que ya estén implantadas o funcionando en la empresa para evitar propuestas redundantes.")
+            implemented_catalog = [
+                ("LED", "Iluminación LED instalada en naves, oficinas o zonas auxiliares para reducir consumo eléctrico en alumbrado."),
+                ("GdO", "Contrato eléctrico con Garantías de Origen para acreditar suministro renovable en la electricidad comprada."),
+                ("Paneles solares", "Instalación fotovoltaica de autoconsumo ya operativa, en cubierta o suelo, que reduce compra de red."),
+                ("Flota eléctrica", "Vehículos eléctricos o híbridos enchufables incorporados en la flota propia de la empresa."),
+                ("Variadores de frecuencia", "Variadores en motores, bombas o ventiladores para adaptar la velocidad y evitar consumos innecesarios."),
+                ("EMS / submetering", "Sistema de gestión energética o submedición que permite seguir consumos por línea, área o equipo."),
+                ("Recuperación de calor", "Aprovechamiento de calor residual de procesos o equipos para precalentar, climatizar o cubrir otras demandas."),
+                ("Programa de fugas de aire comprimido", "Rutina activa de detección y corrección de fugas en la red de aire comprimido."),
+            ]
+            implemented_state = company_inputs.get("implemented_measures") or {}
+            company_inputs["implemented_measures"] = {}
+            measure_cols = st.columns(2)
+            for idx, (label, description) in enumerate(implemented_catalog):
+                with measure_cols[idx % 2]:
+                    checked = st.checkbox(
+                        label,
+                        value=str(implemented_state.get(label, "No")).strip().lower() in ["sí", "si", "yes"],
+                        key=f"implemented_measure_{label}",
                     )
-                },
-                )
-            st.session_state["implemented_measures_df"] = measures_df
-            company_inputs["implemented_measures"] = {
-                row["medida"]: row["estado"] for _, row in measures_df.iterrows()
-            }
+                    st.caption(description)
+                    company_inputs["implemented_measures"][label] = "Sí" if checked else "No"
+
+            company_inputs["roof_area_m2"] = st.number_input(
+                "Área disponible de cubierta (m²) [opcional]",
+                min_value=0.0,
+                value=float(st.session_state.get("roof_area_m2", 0.0)),
+                step=100.0,
+            )
+            st.session_state["roof_area_m2"] = company_inputs["roof_area_m2"]
 
         with tab_scope1:
+            render_tab_intro(
+                "Alcance 1",
+                "Registra consumos de combustión fija, flota propia y gases refrigerantes con sus unidades oficiales para estimar las emisiones directas.",
+            )
             c1, c2 = st.columns(2)
             with c1:
                 st.markdown("**Combustión fija**")
@@ -2236,74 +2476,44 @@ def render_tool_page() -> None:
                 company_inputs["refrigerants"] = refrigerant_entries
 
         with tab_scope2:
+            render_tab_intro(
+                "Alcance 2",
+                "Indica la electricidad comprada y, si aplica, el calor o vapor comprado para calcular las emisiones indirectas por energía.",
+            )
             build_scope2_ui(company_inputs)
 
         with tab_finance:
-            f1, f2 = st.columns(2)
-            with f1:
-                st.markdown("**Supuestos económicos**")
-                horizon_years = st.slider("Horizonte del proyecto (años)", 1, 10, 5, 1)
-                discount_rate_pct = st.slider("Tasa de descuento (%)", 0.0, 25.0, 8.0, 0.25)
-                co2_price = st.number_input("Precio CO₂ (€/t)", min_value=0.0, value=80.0, step=5.0)
-                budget_eur = st.number_input("Presupuesto CAPEX (€)", min_value=0.0, value=10000.0, step=10000.0)
-                min_co2_t = st.number_input("Objetivo mínimo anual de CO₂ (t/año) [opcional]", min_value=0.0, value=0.0, step=10.0)
-            with f2:
-                st.markdown("**Restricciones técnicas para plan de mejora**")
-                company_inputs["roof_area_m2"] = st.number_input("Área disponible de cubierta (m²) [opcional]", min_value=0.0, value=0.0, step=100.0)
-                company_inputs["has_compressed_air"] = st.checkbox("Usa sistemas de aire comprimido", value=True)
-                company_inputs["waste_heat_potential"] = st.selectbox("Potencial de calor residual (aprox.)", ["Desconocido", "Bajo", "Medio", "Alto"], index=0)
-                company_inputs["has_process_heat"] = st.checkbox("Tiene calor de proceso", value=True)
-                company_inputs["heat_temp_level"] = st.selectbox("Nivel de temperatura de proceso", ["Baja", "Media", "Alta", "Desconocida"], index=3)
-                company_inputs["load_profile_known"] = st.checkbox("Perfil de carga conocido", value=False)
-
-                st.markdown("**Prioridad de optimización**")
-                st.caption("Ajusta el equilibrio entre reducción de CO₂ y rentabilidad financiera.")
-                w_co2 = st.slider("Peso CO₂", 0.0, 1.0, 0.70, 0.05)
-                w_npv = st.slider("Peso NPV", 0.0, 1.0, 0.30, 0.05)
-
-            st.markdown("**Plantilla cliente**")
-            st.download_button(
-                "Descargar plantilla CSV (ejemplo)",
-                data=template_csv_bytes(),
-                file_name="client_initiatives_template.csv",
-                mime="text/csv",
-                use_container_width=True,
+            render_tab_intro(
+                "Supuestos financieros",
+                "Define horizonte, presupuesto y criterios de priorización para valorar las iniciativas con una lógica financiera coherente.",
             )
+            finance_left, finance_right = st.columns([1.7, 1.0])
+            with finance_left:
+                financial_assumptions = build_financial_assumptions_ui()
+                st.markdown("<div style='height:0.6rem;'></div>", unsafe_allow_html=True)
+                investment_criteria = build_investment_criteria_ui()
+            with finance_right:
+                build_financial_summary_ui({**financial_assumptions, **investment_criteria})
 
+        horizon_years = int(financial_assumptions["horizon_years"])
+        discount_rate_pct = float(financial_assumptions["discount_rate_pct"])
+        co2_price = float(financial_assumptions["carbon_price_eur_t"])
+        budget_eur = float(investment_criteria["capex_budget_eur"])
+        min_co2_t = float(investment_criteria["min_co2_target_tpy"] or 0.0)
+        company_inputs["horizon_years"] = horizon_years
+        company_inputs["discount_rate"] = discount_rate_pct / 100.0
+        company_inputs["carbon_price_eur_t"] = co2_price
+        company_inputs["capex_budget_eur"] = budget_eur
+        company_inputs["min_co2_target_tpy"] = investment_criteria["min_co2_target_tpy"]
+        company_inputs["max_payback_years"] = investment_criteria["max_payback_years"]
         discount_rate = discount_rate_pct / 100.0
         confidence_floor = 1.0
-        s = max(1e-9, w_npv + w_co2)
-        w_npv, w_co2 = w_npv / s, w_co2 / s
+        w_npv, w_co2 = 0.30, 0.70
         w_strategy = 0.0
         objective = "Balanced score (NPV + CO2 + strategy)"
 
         footprint = calculate_company_footprint(company_inputs)
-        st.markdown("### Resultado de huella de carbono")
-        st.caption("Resultado actualizado con los datos introducidos en las pestañas superiores.")
-
-        h1, h2, h3, h4 = st.columns(4)
-        h1.metric("Alcance 1 (tCO₂e/año)", f"{footprint['scope1_t']:.1f}")
-        h2.metric("Alcance 2 (tCO₂e/año)", f"{footprint['scope2_t']:.1f}")
-        h3.metric("Alcance 3", "Informativo")
-        h4.metric("Huella total (1+2)", f"{footprint['total_t']:.1f}")
-
-        st.progress(min(1.0, footprint["total_t"] / 1000.0), text=f"Huella total estimada: {footprint['total_t']:.1f} tCO₂e/año")
-
-        s1, s2, s3 = st.columns(3)
-        s1.metric("A1 - Combustión fija", f"{footprint['scope1_stationary_t']:.1f}")
-        s2.metric("A1 - Flota", f"{footprint['scope1_fleet_t']:.1f}")
-        s3.metric("A1 - Fugitivas", f"{footprint['scope1_fugitive_t']:.1f}")
-        e1, e2 = st.columns(2)
-        e1.metric("A2 - Electricidad", f"{footprint['scope2_elec_t']:.1f}")
-        e2.metric("A2 - Calor/vapor", f"{footprint['scope2_heat_t']:.1f}")
-    
-        st.caption(
-            f"Cálculo Alcance 1: combustión fija + flota + fugitivas. "
-            f"Combustión fija con {footprint['scope1_factor_source']}. "
-            f"Alcance 2 electricidad: {footprint['scope2_elec_method']} "
-            f"(factor {footprint['used_elec_factor']:.3f} tCO₂/MWh, fuente: {footprint['scope2_elec_source']}). "
-            f"Calor/vapor (factor {footprint['used_heat_factor']:.3f} tCO₂/MWh)."
-        )
+        render_footprint_results(footprint)
         if get_refrigerant_entries(company_inputs) and not footprint["refrigerant_factor_found"]:
             st.warning(
                 f"No se encontró GWP para '{footprint['refrigerant_key']}'. "
@@ -2313,14 +2523,6 @@ def render_tool_page() -> None:
             st.warning("Refrigerante con GWP alto. Considera plan de sustitución y control de fugas.")
         if _to_float_or_zero(company_inputs.get("annual_electricity_mwh")) > 0 and _to_float_or_zero(footprint.get("used_elec_factor")) == 0:
             st.warning("No hay factor eléctrico válido disponible; revisa el método y los factores.")
-
-        with st.expander("Cómo se calcula la huella y qué incluye cada alcance"):
-            st.markdown(
-                "**Alcance 1 (directas):** combustibles en planta, flota propia y fugas de refrigerantes.\n\n"
-                "**Alcance 2 (indirectas por energía):** electricidad y calor/vapor comprados.\n\n"
-                "**Alcance 3 (otras indirectas):** cadena de suministro, viajes, logística, uso y fin de vida. "
-                "Se explica en la herramienta, pero no se calcula automáticamente en esta versión."
-            )
 
         # Normalizar tipo de GdO
         if company_inputs.get("electricity_gdo_type") == "Ninguno/Desconocido":
