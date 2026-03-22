@@ -67,6 +67,12 @@ OPTIONAL_COLUMNS = [
     "provided_info",        # semicolon list of info the client actually provided
     "initiative_family",    # e.g., Solar, Motors, Heat, etc.
     "data_dependency",      # Low/Medium/High
+    "categoria",            # quick_win / estrategica
+    "priority_weight",      # weighting factor for prioritization
+    "co2_adjusted_t",       # adjusted CO2 reduction for ranking
+    "nombre",               # display alias
+    "tiempo_implementacion",# display alias
+    "thematic_bucket",      # diversity bucket
 ]
 
 # Normative columns aligned with Scope 1+2 & MRV
@@ -83,9 +89,11 @@ NUMERIC_COLUMNS = [
     "capex_eur",
     "annual_opex_saving_eur",
     "annual_co2_reduction_t",
+    "co2_adjusted_t",
     "implementation_months",
     "strategic_score_1_5",
     "confidence_0_1",
+    "priority_weight",
 ]
 
 # -----------------------------
@@ -604,11 +612,15 @@ def coerce_numeric(df: pd.DataFrame) -> pd.DataFrame:
 def column_config_es(cols: List[str]) -> dict:
     labels = {
         "id": "ID",
+        "nombre": "Nombre",
         "initiative_family": "Familia",
         "initiative": "Iniciativa",
+        "categoria": "Categoría",
         "capex_eur": "CAPEX (€)",
         "annual_opex_saving_eur": "Ahorro OPEX anual (€)",
         "annual_co2_reduction_t": "Reducción CO₂ anual (t)",
+        "co2_adjusted_t": "CO₂ ajustado (t)",
+        "tiempo_implementacion": "Tiempo implementación",
         "implementation_months": "Implementación (meses)",
         "strategic_score_1_5": "Puntuación estratégica (1-5)",
         "notes": "Notas",
@@ -1054,6 +1066,63 @@ def generate_pestel(company: Dict) -> Dict[str, List[str]]:
     return {"Político": p, "Económico": e, "Social": s, "Tecnológico": t, "Ambiental": en, "Legal": l}
 
 
+def build_ai_company_context(company_inputs: Dict) -> Dict[str, Any]:
+    stationary = get_stationary_fuel_entries(company_inputs)
+    mobile = get_mobile_fuel_entries(company_inputs)
+    refrigerants = get_refrigerant_entries(company_inputs)
+    annual_electricity_mwh = _to_float_or_zero(company_inputs.get("annual_electricity_mwh"))
+    annual_fuel_mwh = _to_float_or_zero(company_inputs.get("annual_fuel_mwh"))
+    total_energy_mwh = annual_electricity_mwh + annual_fuel_mwh
+    if total_energy_mwh >= 20000:
+        size_band = "muy alta intensidad energética"
+    elif total_energy_mwh >= 5000:
+        size_band = "intensidad energética media"
+    elif total_energy_mwh > 0:
+        size_band = "intensidad energética moderada o baja"
+    else:
+        size_band = "sin suficiente dato energético"
+    return {
+        "company_name": (company_inputs.get("company_name") or "").strip(),
+        "sector": company_inputs.get("sector") or company_inputs.get("cnae_sector") or "",
+        "country": company_inputs.get("country") or "",
+        "province": company_inputs.get("province") or "",
+        "postal_code": company_inputs.get("postal_code") or "",
+        "country_region": company_inputs.get("country_region") or "",
+        "inventory_year": company_inputs.get("inventory_year") or 2024,
+        "electricity_method": company_inputs.get("electricity_method") or "location",
+        "annual_electricity_mwh": annual_electricity_mwh,
+        "annual_purchased_heat_mwh": company_inputs.get("annual_purchased_heat_mwh"),
+        "annual_fuel_mwh": annual_fuel_mwh,
+        "total_energy_mwh": total_energy_mwh,
+        "size_signal": size_band,
+        "has_fleet": bool(company_inputs.get("has_fleet", False)),
+        "has_refrigerants": bool(company_inputs.get("has_refrigerants", False)),
+        "roof_area_m2": company_inputs.get("roof_area_m2"),
+        "stationary_fuels_reported": [STATIONARY_FUELS_BY_KEY[r["fuel_key"]]["label"] for r in stationary if r.get("fuel_key") in STATIONARY_FUELS_BY_KEY],
+        "mobile_fuels_reported": [
+            {
+                "fuel": MOBILE_FUELS_BY_KEY[r["fuel_key"]]["fuel_label"],
+                "vehicle": MOBILE_FUELS_BY_KEY[r["fuel_key"]]["vehicle_type"],
+            }
+            for r in mobile
+            if r.get("fuel_key") in MOBILE_FUELS_BY_KEY
+        ],
+        "refrigerants_reported": [r.get("name") for r in refrigerants if r.get("name")],
+        "implemented_measures": company_inputs.get("implemented_measures") or {},
+        "financial_context": {
+            "horizon_years": company_inputs.get("horizon_years"),
+            "discount_rate": company_inputs.get("discount_rate"),
+            "carbon_price_eur_t": company_inputs.get("carbon_price_eur_t"),
+            "capex_budget_eur": company_inputs.get("capex_budget_eur"),
+            "max_payback_years": company_inputs.get("max_payback_years"),
+        },
+    }
+
+
+def gemini_should_use_web_research(company_inputs: Dict) -> bool:
+    return bool((company_inputs.get("company_name") or "").strip())
+
+
 def generate_ai_pestel(
     provider: str,
     api_key: str,
@@ -1063,18 +1132,32 @@ def generate_ai_pestel(
     if not api_key:
         raise RuntimeError(f"Falta la API key de {provider}.")
 
+    company_context = build_ai_company_context(company_inputs)
+    use_web_research = gemini_should_use_web_research(company_inputs)
+
     system_prompt = (
         "Eres un consultor senior de descarbonización industrial. "
         "Devuelve SOLO JSON válido, sin texto adicional. "
         "Responde en español. "
         "Estructura: claves Político, Económico, Social, Tecnológico, Ambiental, Legal "
-        "y cada valor es una lista de bullets cortos."
+        "y cada valor es una lista de bullets cortos. "
+        "El análisis debe estar adaptado al sector, a la localización de la empresa en España y a su perfil operativo/energético. "
+        "Evita bullets genéricos que podrían aplicarse a cualquier empresa. "
+        "Si se proporciona nombre de empresa y dispones de búsqueda web, úsala para identificar qué vende la empresa, qué productos/servicios ofrece, "
+        "qué procesos productivos o logísticos parecen relevantes y qué rasgos de su cadena de suministro pueden afectar a la descarbonización. "
+        "Si algo no se puede verificar, indícalo con prudencia y apóyate en sector + localización + datos introducidos."
     )
 
     user_prompt = (
         "Genera un PESTEL breve y accionable (2-3 bullets por categoría) "
-        "basado únicamente en los inputs de la empresa.\n\n"
-        f"COMPANY_INPUTS: {json.dumps(company_inputs, ensure_ascii=False)}"
+        "basado en los datos de la empresa y, si hay nombre de empresa y la herramienta lo permite, en información pública verificable.\n\n"
+        "Reglas:\n"
+        "- Ten en cuenta expresamente el sector y la provincia/ubicación.\n"
+        "- Da prioridad a implicaciones reales para consumo energético, combustibles, calor de proceso, logística, regulación e inversión.\n"
+        "- No repitas obviedades vacías.\n"
+        "- Si haces una inferencia, que sea razonable y ligada al contexto.\n\n"
+        f"COMPANY_CONTEXT: {json.dumps(company_context, ensure_ascii=False)}\n"
+        f"RAW_INPUTS: {json.dumps(company_inputs, ensure_ascii=False)}"
     )
 
     provider_norm = (provider or "").strip().lower()
@@ -1099,6 +1182,8 @@ def generate_ai_pestel(
             "systemInstruction": {"parts": [{"text": system_prompt}]},
             "contents": [{"parts": [{"text": user_prompt}]}],
         }
+        if use_web_research:
+            payload["tools"] = [{"google_search": {}}]
         r = requests.post(url, json=payload, timeout=60)
         if r.status_code >= 400:
             raise RuntimeError(f"Error API Gemini ({r.status_code}): {r.text[:400]}")
@@ -1143,10 +1228,165 @@ def generate_ai_pestel(
     return out
 
 
+def classify_initiative_category(row: pd.Series) -> str:
+    name = str(row.get("initiative") or row.get("nombre") or "").lower()
+    family = str(row.get("initiative_family") or "").lower()
+    capex = _to_float_or_zero(row.get("capex_eur"))
+    implementation = _to_float_or_zero(row.get("implementation_months"))
+    quick_keywords = [
+        "gdo", "garantía de origen", "garantia de origen", "led", "aire comprimido",
+        "eco-driving", "ecodriving", "mantenimiento", "route optimization", "optimización"
+    ]
+    if any(k in name for k in quick_keywords):
+        return "quick_win"
+    if capex <= 50000 and implementation > 0 and implementation <= 3:
+        return "quick_win"
+    if "supply" in family and capex == 0:
+        return "quick_win"
+    return "estrategica"
+
+
+def classify_thematic_bucket(row: pd.Series) -> str:
+    text = f"{row.get('initiative_family', '')} {row.get('initiative', '')}".lower()
+    if any(k in text for k in ["solar", "fotovolta", "autoconsumo", "pv", "renewable"]):
+        return "renovables"
+    if any(k in text for k in ["electrification", "electrificación", "heat pump", "bomba de calor", "flota eléctrica", "fleet electr"]):
+        return "electrificacion"
+    if any(k in text for k in ["led", "motor", "vfd", "efficiency", "hvac", "boiler", "burner"]):
+        return "eficiencia"
+    if any(k in text for k in ["ems", "submetering", "compressed air", "aire comprimido", "eco-driving", "route", "maintenance"]):
+        return "operativa"
+    if any(k in text for k in ["gdo", "ppa", "supplier", "supply decarbonization", "electricity supply", "contract"]):
+        return "suministro"
+    return "otras"
+
+
+def apply_initiative_business_rules(df: pd.DataFrame, company_inputs: Dict) -> pd.DataFrame:
+    df = df.copy()
+    annual_electricity_mwh = _to_float_or_zero(company_inputs.get("annual_electricity_mwh"))
+    elec_factor = _to_float_or_zero(company_inputs.get("co2_factor_elec_t_per_mwh"))
+    electricity_method = (company_inputs.get("electricity_method") or "location").lower()
+
+    for idx in df.index:
+        name = str(df.at[idx, "initiative"]).lower()
+        category = classify_initiative_category(df.loc[idx])
+        df.at[idx, "categoria"] = category
+        df.at[idx, "priority_weight"] = 1.0 if category == "estrategica" else 0.4
+        df.at[idx, "thematic_bucket"] = classify_thematic_bucket(df.loc[idx])
+
+        if "gdo" in name or "garantía de origen" in name or "garantia de origen" in name:
+            df.at[idx, "capex_eur"] = 0.0
+            df.at[idx, "categoria"] = "quick_win"
+            df.at[idx, "priority_weight"] = 0.4
+            df.at[idx, "strategic_score_1_5"] = min(2.0, _to_float_or_zero(df.at[idx, "strategic_score_1_5"]) or 2.0)
+            df.at[idx, "implementation_months"] = 1.0 if _to_float_or_zero(df.at[idx, "implementation_months"]) <= 0 else min(2.0, _to_float_or_zero(df.at[idx, "implementation_months"]))
+            if pd.isna(df.at[idx, "annual_opex_saving_eur"]):
+                df.at[idx, "annual_opex_saving_eur"] = 0.0
+            if electricity_method == "market" and annual_electricity_mwh > 0 and elec_factor > 0:
+                df.at[idx, "annual_co2_reduction_t"] = annual_electricity_mwh * elec_factor
+            else:
+                df.at[idx, "annual_co2_reduction_t"] = 0.0
+
+        if ("refrigerant" in name or "refrigerante" in name or "fugas" in name) and pd.isna(df.at[idx, "annual_opex_saving_eur"]):
+            df.at[idx, "annual_opex_saving_eur"] = -3000.0
+
+    return df
+
+
+def finalize_initiatives(
+    df: pd.DataFrame,
+    company_inputs: Dict,
+    n: int = 8,
+    fallback_df: Optional[pd.DataFrame] = None,
+) -> pd.DataFrame:
+    df = df.copy()
+    for c in REQUIRED_COLUMNS:
+        if c not in df.columns:
+            df[c] = np.nan
+    for c in OPTIONAL_COLUMNS:
+        if c not in df.columns:
+            df[c] = np.nan if c in NUMERIC_COLUMNS else ""
+
+    df = coerce_numeric(df)
+    df = apply_initiative_business_rules(df, company_inputs)
+    df["nombre"] = df["initiative"].fillna("").astype(str)
+    df["tiempo_implementacion"] = df["implementation_months"]
+    df["annual_co2_reduction_t"] = pd.to_numeric(df["annual_co2_reduction_t"], errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    df["priority_weight"] = pd.to_numeric(df["priority_weight"], errors="coerce").fillna(1.0)
+    df["co2_adjusted_t"] = df["annual_co2_reduction_t"] * df["priority_weight"]
+    df["confidence_0_1"] = pd.to_numeric(df.get("confidence_0_1", np.nan), errors="coerce").clip(0.0, 1.0)
+    df["strategic_score_1_5"] = pd.to_numeric(df["strategic_score_1_5"], errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(3.0)
+    df["capex_eur"] = pd.to_numeric(df["capex_eur"], errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
+    df["implementation_months"] = pd.to_numeric(df["implementation_months"], errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(3.0)
+    df["initiative"] = df["initiative"].fillna("").astype(str)
+    df = df[df["initiative"].str.strip() != ""].copy()
+    df["_dedupe_key"] = df["initiative"].str.strip().str.lower()
+    df = df.drop_duplicates(subset=["_dedupe_key"], keep="first")
+
+    if fallback_df is not None and len(df) < n:
+        fb = fallback_df.copy()
+        for c in df.columns:
+            if c not in fb.columns:
+                fb[c] = np.nan if c in NUMERIC_COLUMNS else ""
+        fb = coerce_numeric(fb)
+        fb = apply_initiative_business_rules(fb, company_inputs)
+        fb["nombre"] = fb["initiative"].fillna("").astype(str)
+        fb["tiempo_implementacion"] = fb["implementation_months"]
+        fb["annual_co2_reduction_t"] = pd.to_numeric(fb["annual_co2_reduction_t"], errors="coerce").replace([np.inf, -np.inf], np.nan).fillna(0.0)
+        fb["priority_weight"] = pd.to_numeric(fb["priority_weight"], errors="coerce").fillna(1.0)
+        fb["co2_adjusted_t"] = fb["annual_co2_reduction_t"] * fb["priority_weight"]
+        fb["_dedupe_key"] = fb["initiative"].fillna("").astype(str).str.strip().str.lower()
+        merged = pd.concat([df, fb], ignore_index=True)
+        merged = merged.drop_duplicates(subset=["_dedupe_key"], keep="first")
+        df = merged
+
+    confidence = pd.to_numeric(df.get("confidence_0_1", np.nan), errors="coerce").fillna(0.55)
+    df["_relevance"] = (
+        pd.to_numeric(df["co2_adjusted_t"], errors="coerce").fillna(0.0)
+        + 5.0 * (df["categoria"].eq("estrategica").astype(float))
+        + 0.8 * pd.to_numeric(df["strategic_score_1_5"], errors="coerce").fillna(3.0)
+        + confidence
+        - 0.02 * pd.to_numeric(df["implementation_months"], errors="coerce").fillna(0.0)
+    )
+    df = df.sort_values("_relevance", ascending=False).reset_index(drop=True)
+
+    selected_indices: List[int] = []
+    diversity_buckets = ["eficiencia", "electrificacion", "renovables", "operativa", "suministro"]
+    for bucket in diversity_buckets:
+        bucket_candidates = df[df["thematic_bucket"] == bucket]
+        if not bucket_candidates.empty:
+            idx = int(bucket_candidates.index[0])
+            if idx not in selected_indices:
+                selected_indices.append(idx)
+
+    strategic_candidates = [int(i) for i in df[df["categoria"] == "estrategica"].index.tolist() if int(i) not in selected_indices]
+    for idx in strategic_candidates:
+        if len(selected_indices) >= n:
+            break
+        selected_indices.append(idx)
+
+    for idx in [int(i) for i in df.index.tolist() if int(i) not in selected_indices]:
+        if len(selected_indices) >= n:
+            break
+        selected_indices.append(idx)
+
+    df = df.loc[selected_indices[:n]].copy().reset_index(drop=True)
+    if len(df) > n:
+        df = df.head(n).copy()
+
+    if len(df) < n:
+        df = df.head(n).copy()
+
+    df["id"] = range(1, len(df) + 1)
+    df = df.drop(columns=[c for c in ["_dedupe_key", "_relevance"] if c in df.columns])
+    df["notes"] = df["notes"].fillna("").astype(str)
+    return df
+
+
 # -----------------------------
 # Initiative proposal engine (normative-aligned)
 # -----------------------------
-def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
+def propose_initiatives(company: Dict, n: int = 8, finalize_output: bool = True) -> pd.DataFrame:
     """
     Normative-aligned initiative generator (Spain / Scope 1+2 framing + MRV):
     - Scope 1: fixed combustion, fleet fuels, F-gas leaks
@@ -1533,7 +1773,7 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
             data_dependency="High",
         )
 
-    df = pd.DataFrame(initiatives).head(n).copy()
+    df = pd.DataFrame(initiatives).copy()
 
     # Ensure required/optional columns exist
     for c in REQUIRED_COLUMNS:
@@ -1544,6 +1784,8 @@ def propose_initiatives(company: Dict, n: int = 8) -> pd.DataFrame:
             df[c] = ""
 
     df["notes"] = df["notes"].fillna("").astype(str)
+    if finalize_output:
+        return finalize_initiatives(df, company, n=n)
     return df
 
 # -----------------------------
@@ -1612,11 +1854,19 @@ def optimize_portfolio(
     w_strategy: float,
 ) -> Tuple[pd.DataFrame, dict]:
     df = df.copy()
-
-    df["capex_eur"] = df["capex_eur"].fillna(0.0)
-    df["annual_co2_reduction_t"] = df["annual_co2_reduction_t"].fillna(0.0)
-    df["npv_penalized_eur"] = df["npv_penalized_eur"].fillna(-1e9)
-    df["strategic_score_1_5"] = df["strategic_score_1_5"].fillna(3.0)
+    numeric_defaults = {
+        "capex_eur": 0.0,
+        "annual_co2_reduction_t": 0.0,
+        "co2_adjusted_t": 0.0,
+        "npv_penalized_eur": -1e9,
+        "npv_eur": -1e9,
+        "strategic_score_1_5": 3.0,
+    }
+    for col, default in numeric_defaults.items():
+        if col not in df.columns:
+            df[col] = default
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+        df[col] = df[col].replace([np.inf, -np.inf], np.nan).fillna(default)
 
     model = pulp.LpProblem("DecarbPortfolio", pulp.LpMaximize)
 
@@ -1642,19 +1892,21 @@ def optimize_portfolio(
         )
     else:
         npv_vals = df["npv_eur"].values.astype(float)
-        co2_vals = df["annual_co2_reduction_t"].values.astype(float)
+        co2_vals = df["co2_adjusted_t"].values.astype(float)
         strat_vals = df["strategic_score_1_5"].values.astype(float)
 
         def norm(arr: np.ndarray) -> np.ndarray:
             a = np.array(arr, dtype=float)
+            a = np.where(np.isfinite(a), a, np.nan)
             lo, hi = np.nanmin(a), np.nanmax(a)
             if not np.isfinite(lo) or not np.isfinite(hi) or hi - lo < 1e-9:
                 return np.zeros_like(a)
-            return (a - lo) / (hi - lo)
+            out = (a - lo) / (hi - lo)
+            return np.where(np.isfinite(out), out, 0.0)
 
-        df["npv_norm"] = norm(npv_vals)
-        df["co2_norm"] = norm(co2_vals)
-        df["strat_norm"] = norm(strat_vals)
+        df["npv_norm"] = pd.Series(norm(npv_vals)).fillna(0.0)
+        df["co2_norm"] = pd.Series(norm(co2_vals)).fillna(0.0)
+        df["strat_norm"] = pd.Series(norm(strat_vals)).fillna(0.0)
 
         model += pulp.lpSum(
             x[i] * (
@@ -1763,8 +2015,58 @@ def _parse_optional_nonnegative_number(raw_value: str, field_label: str) -> Opti
     return value
 
 
+def ensure_financial_state_defaults() -> None:
+    defaults = {
+        "horizon_years": 5,
+        "discount_rate_pct": 8.0,
+        "carbon_price_eur_t": 80.0,
+        "capex_budget_eur": 10000.0,
+    }
+    for key, value in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+    widget_defaults = {
+        "fin_horizon_years_input": int(st.session_state["horizon_years"]),
+        "fin_discount_rate_pct_input": float(st.session_state["discount_rate_pct"]),
+        "fin_carbon_price_eur_t_input": float(st.session_state["carbon_price_eur_t"]),
+        "fin_capex_budget_eur_input": float(st.session_state["capex_budget_eur"]),
+        "sidebar_discount_rate_pct_input": float(st.session_state["discount_rate_pct"]),
+        "sidebar_capex_budget_eur_input": float(st.session_state["capex_budget_eur"]),
+    }
+    for key, value in widget_defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = value
+
+
+def _sync_discount_rate_from_sidebar() -> None:
+    value = float(st.session_state.get("sidebar_discount_rate_pct_input", 0.0))
+    st.session_state["discount_rate_pct"] = value
+    st.session_state["fin_discount_rate_pct_input"] = value
+
+
+def _sync_discount_rate_from_main() -> None:
+    value = float(st.session_state.get("fin_discount_rate_pct_input", 0.0))
+    st.session_state["discount_rate_pct"] = value
+    st.session_state["sidebar_discount_rate_pct_input"] = value
+
+
+def _sync_capex_from_sidebar() -> None:
+    value = float(st.session_state.get("sidebar_capex_budget_eur_input", 0.0))
+    st.session_state["capex_budget_eur"] = value
+    st.session_state["fin_capex_budget_eur_input"] = value
+
+
+def _sync_capex_from_main() -> None:
+    value = float(st.session_state.get("fin_capex_budget_eur_input", 0.0))
+    st.session_state["capex_budget_eur"] = value
+    st.session_state["sidebar_capex_budget_eur_input"] = value
+
+
 def build_financial_assumptions_ui() -> Dict[str, float]:
     st.markdown("**Supuestos financieros**")
+    ensure_financial_state_defaults()
+
     col_a, col_b, col_c = st.columns(3)
     with col_a:
         horizon_years = int(
@@ -1772,8 +2074,8 @@ def build_financial_assumptions_ui() -> Dict[str, float]:
                 "Horizonte del proyecto (años)",
                 min_value=1,
                 max_value=20,
-                value=int(st.session_state.get("horizon_years", 5)),
                 step=1,
+                key="fin_horizon_years_input",
                 help="Determina durante cuántos años se acumulan ahorros y flujos del portfolio.",
             )
         )
@@ -1783,9 +2085,10 @@ def build_financial_assumptions_ui() -> Dict[str, float]:
                 "Tasa de descuento (%)",
                 min_value=0.0,
                 max_value=100.0,
-                value=float(st.session_state.get("discount_rate_pct", 8.0)),
                 step=0.25,
                 format="%.2f",
+                key="fin_discount_rate_pct_input",
+                on_change=_sync_discount_rate_from_main,
                 help="Representa la rentabilidad mínima o coste de capital exigido por la empresa.",
             )
         )
@@ -1794,8 +2097,8 @@ def build_financial_assumptions_ui() -> Dict[str, float]:
             st.number_input(
                 "Precio CO2 (€/t)",
                 min_value=0.0,
-                value=float(st.session_state.get("carbon_price_eur_t", 80.0)),
                 step=5.0,
+                key="fin_carbon_price_eur_t_input",
                 help="Se usa para monetizar la reducción anual de emisiones cuando aplique.",
             )
         )
@@ -1812,28 +2115,35 @@ def build_financial_assumptions_ui() -> Dict[str, float]:
 
 def build_investment_criteria_ui() -> Dict[str, Optional[float]]:
     st.markdown("**Criterios de inversión**")
+    ensure_financial_state_defaults()
+    if "fin_min_co2_target_tpy_input" not in st.session_state:
+        st.session_state["fin_min_co2_target_tpy_input"] = str(st.session_state.get("min_co2_target_tpy_input", ""))
+    if "fin_max_payback_years_input" not in st.session_state:
+        st.session_state["fin_max_payback_years_input"] = str(st.session_state.get("max_payback_years_input", ""))
+
     col_a, col_b, col_c = st.columns(3)
     with col_a:
         capex_budget_eur = float(
             st.number_input(
                 "Presupuesto CAPEX (€)",
                 min_value=0.0,
-                value=float(st.session_state.get("capex_budget_eur", 10000.0)),
                 step=10000.0,
+                key="fin_capex_budget_eur_input",
+                on_change=_sync_capex_from_main,
                 help="Actúa como restricción presupuestaria del portfolio de medidas.",
             )
         )
     with col_b:
         min_co2_raw = st.text_input(
             "Objetivo mínimo anual de CO2 (t/año) [opcional]",
-            value=st.session_state.get("min_co2_target_tpy_input", ""),
+            key="fin_min_co2_target_tpy_input",
             placeholder="Ej. 50",
             help="Déjalo vacío si no quieres imponer un mínimo anual de reducción en la optimización.",
         )
     with col_c:
         max_payback_raw = st.text_input(
             "Payback máximo aceptable (años) [opcional]",
-            value=st.session_state.get("max_payback_years_input", ""),
+            key="fin_max_payback_years_input",
             placeholder="Ej. 4",
             help="Se guarda para usarlo como criterio de filtrado o priorización del portfolio.",
         )
@@ -2053,11 +2363,23 @@ def generate_ai_initiatives(
     if not api_key:
         raise RuntimeError(f"Falta la API key de {provider}.")
 
+    company_context = build_ai_company_context(company_inputs)
+    use_web_research = gemini_should_use_web_research(company_inputs)
+
     schema_note = {
         "required_columns": REQUIRED_COLUMNS,
         "optional_columns": OPTIONAL_COLUMNS,
         "numeric_columns": NUMERIC_COLUMNS,
         "n_rows": n,
+        "business_output_fields": [
+            "nombre",
+            "categoria",
+            "capex_eur",
+            "annual_opex_saving_eur",
+            "annual_co2_reduction_t",
+            "co2_adjusted_t",
+            "implementation_months",
+        ],
     }
 
     system_prompt = (
@@ -2066,17 +2388,37 @@ def generate_ai_initiatives(
         "No inventes cifras si no hay datos: usa null. "
         "Responde en español. "
         "Incluye campos normativos (scope, emission_source, activity_unit, mrv_method, normative_reference) "
-        "y data gaps (required_info, provided_info, data_dependency)."
+        "y data gaps (required_info, provided_info, data_dependency). "
+        "Las iniciativas deben estar adaptadas al sector, localización y realidad operativa de la empresa; evita propuestas genéricas. "
+        "Cuando estimes CAPEX, ahorro OPEX, reducción CO2 e implementación, usa lógica dimensional y de orden de magnitud realista para ese tipo de empresa. "
+        "Ten en cuenta tamaño energético, consumos, combustibles, flota, cubierta disponible, calor comprado, calor de proceso si se deduce, restricciones de implantación y presupuesto. "
+        "Si la base cuantitativa es insuficiente, reduce la confianza y usa null antes que inventar."
     )
 
     user_prompt = (
         "Genera exactamente N iniciativas en JSON (lista de objetos) siguiendo este esquema. "
-        "Usa los inputs de la empresa y supuestos conservadores. "
+        "Usa los inputs de la empresa, el contexto estructurado y supuestos conservadores. "
         "Cada iniciativa debe incluir TODAS las columnas requeridas y opcionales. "
         "Para 'scope' usa 'Alcance 1' o 'Alcance 2'. "
-        "No propongas iniciativas ya implantadas (salvo si se pide explícitamente ampliación cuando son parciales).\n\n"
+        "No propongas iniciativas ya implantadas (salvo si se pide explícitamente ampliación cuando son parciales). "
+        "Si hay nombre de empresa y la herramienta permite búsqueda web, úsala para entender mejor actividad, productos/servicios, procesos o cadena de suministro, "
+        "pero no inventes detalles no verificables ni cifras específicas.\n"
+        "Reglas de rigor:\n"
+        "- Debe haber exactamente 8 iniciativas finales.\n"
+        "- Clasifica cada iniciativa como quick_win o estrategica.\n"
+        "- Favorece estrategica frente a quick_win: usa peso 1.0 para estrategica y 0.4 para quick_win.\n"
+        "- Calcula CO2 ajustado como reduccion_CO2 * peso.\n"
+        "- Asegura diversidad entre eficiencia energética, electrificación, renovables/autoconsumo, mejoras operativas y suministro energético.\n"
+        "- Las cifras deben ser plausibles para la escala de la empresa y consistentes entre sí.\n"
+        "- El OPEX puede ser positivo, cero o negativo según el caso; no supongas siempre ahorro.\n"
+        "- El ahorro OPEX debe derivar de consumos/energía/precios o quedar en null si no hay base.\n"
+        "- La reducción de CO2 debe guardar relación con los consumos y factores de emisión disponibles.\n"
+        "- Los meses de implementación deben reflejar complejidad real: quick wins, proyectos de ingeniería, permisos, obra e integración.\n"
+        "- Usa confidence_0_1 para reflejar cuánta base real hay detrás de cada estimación.\n"
+        "- En notes explica brevemente el driver principal del CAPEX/OPEX/CO2 estimado.\n\n"
         f"N = {n}\n"
         f"SCHEMA: {json.dumps(schema_note, ensure_ascii=False)}\n"
+        f"COMPANY_CONTEXT: {json.dumps(company_context, ensure_ascii=False)}\n"
         f"COMPANY_INPUTS: {json.dumps(company_inputs, ensure_ascii=False)}\n"
     )
 
@@ -2102,6 +2444,8 @@ def generate_ai_initiatives(
             "systemInstruction": {"parts": [{"text": system_prompt}]},
             "contents": [{"parts": [{"text": user_prompt}]}],
         }
+        if use_web_research:
+            payload["tools"] = [{"google_search": {}}]
         r = requests.post(url, json=payload, timeout=60)
         if r.status_code >= 400:
             raise RuntimeError(f"Error API Gemini ({r.status_code}): {r.text[:400]}")
@@ -2178,7 +2522,8 @@ def generate_ai_initiatives(
                 updated_rows.append(row)
         df = pd.DataFrame(updated_rows).reset_index(drop=True)
 
-    return df
+    fallback_df = propose_initiatives(company_inputs, n=max(12, n), finalize_output=False)
+    return finalize_initiatives(df, company_inputs, n=n, fallback_df=fallback_df)
 
 # -----------------------------
 # UI
@@ -2192,6 +2537,7 @@ if st.session_state["current_page"] == "home":
 
 def render_tool_page() -> None:
     render_global_styles()
+    ensure_financial_state_defaults()
     if st.session_state.get("scroll_to_top"):
         st.markdown(
             """
@@ -2221,6 +2567,25 @@ def render_tool_page() -> None:
         if st.button("Volver a inicio", use_container_width=True):
             st.session_state["current_page"] = "home"
             st.rerun()
+
+        st.divider()
+        st.markdown("**Ajustes financieros rápidos**")
+        st.number_input(
+            "Tasa de descuento (%)",
+            min_value=0.0,
+            max_value=100.0,
+            step=0.25,
+            format="%.2f",
+            key="sidebar_discount_rate_pct_input",
+            on_change=_sync_discount_rate_from_sidebar,
+        )
+        st.number_input(
+            "Presupuesto CAPEX (€)",
+            min_value=0.0,
+            step=10000.0,
+            key="sidebar_capex_budget_eur_input",
+            on_change=_sync_capex_from_sidebar,
+        )
     
         st.divider()
         st.markdown("**TFG**")
@@ -2633,13 +2998,14 @@ def render_tool_page() -> None:
         if pestel is None:
             st.info("PESTEL no generado. Puedes continuar con las iniciativas si quieres.")
         if pestel:
-            pcols = st.columns(3)
-            keys = list(pestel.keys())
-            for i, k in enumerate(keys):
-                with pcols[i % 3]:
-                    st.subheader(k)
-                    for bullet in pestel[k]:
-                        st.write(f"- {bullet}")
+            with st.expander("Análisis de factores externos que influyen en el entorno de la empresa.", expanded=True):
+                pcols = st.columns(3)
+                keys = list(pestel.keys())
+                for i, k in enumerate(keys):
+                    with pcols[i % 3]:
+                        st.subheader(k)
+                        for bullet in pestel[k]:
+                            st.write(f"- {bullet}")
 
         st.markdown("### Iniciativas propuestas")
         n_inits = 8
@@ -2710,11 +3076,13 @@ def render_tool_page() -> None:
         confidence_floor=confidence_floor,
     )
     
-    st.markdown("### 6) Evaluación de iniciativas")
+    st.markdown("### Evaluación de iniciativas")
     cols_to_show = [
         "id",
+        "nombre",
         "initiative_family",
         "initiative",
+        "categoria",
         "scope",
         "emission_source",
         "activity_unit",
@@ -2723,10 +3091,12 @@ def render_tool_page() -> None:
         "capex_eur",
         "annual_opex_saving_eur",
         "annual_co2_reduction_t",
+        "co2_adjusted_t",
         "co2_value_eur_per_year",
         "total_annual_benefit_eur",
         "npv_eur",
         "npv_penalized_eur",
+        "tiempo_implementacion",
         "payback_years",
         "implementation_months",
         "strategic_score_1_5",
@@ -2742,7 +3112,7 @@ def render_tool_page() -> None:
         column_config=column_config_es(cols_to_show),
     )
     
-    st.markdown("### 7) Optimización del portafolio")
+    st.markdown("### Optimización del portafolio")
     df_opt, summary = optimize_portfolio(
         df=df,
         budget_eur=budget_eur,
@@ -2772,7 +3142,7 @@ def render_tool_page() -> None:
     # -----------------------------
     # Charts (hardened)
     # -----------------------------
-    st.markdown("### 8) Visuales")
+    st.markdown("### Visuales")
     
     chart_df = df_opt.copy()
     chart_df["selected_label"] = np.where(chart_df["selected"], "Seleccionada", "No seleccionada")
@@ -2825,7 +3195,7 @@ def render_tool_page() -> None:
     # -----------------------------
     # AI Copilot
     # -----------------------------
-    st.markdown("### 9) Copiloto IA")
+    st.markdown("### Copiloto IA")
     
     ai_extra_prompt = st.text_area(
         "Instrucción opcional para la IA (p. ej., flujo de caja, riesgo regulatorio u operaciones):",
@@ -2866,11 +3236,13 @@ def render_tool_page() -> None:
     # -----------------------------
     # Export
     # -----------------------------
-    st.markdown("### 10) Exportar resultados")
+    st.markdown("### Exportar resultados")
     export_cols = [
         "id",
+        "nombre",
         "initiative_family",
         "initiative",
+        "categoria",
         "scope",
         "emission_source",
         "activity_unit",
@@ -2878,7 +3250,9 @@ def render_tool_page() -> None:
         "capex_eur",
         "annual_opex_saving_eur",
         "annual_co2_reduction_t",
+        "co2_adjusted_t",
         "co2_value_eur_per_year",
+        "tiempo_implementacion",
         "implementation_months",
         "strategic_score_1_5",
         "npv_eur",
