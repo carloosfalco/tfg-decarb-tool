@@ -1102,7 +1102,6 @@ def generate_ai_initiatives(
 # UI
 # -----------------------------
 st.title("Herramienta de Decarbonización Industrial")
-st.caption("Prototipo TFG – Carlos Falcó")
 
 with st.sidebar:
     st.header("Modo")

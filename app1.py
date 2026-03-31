@@ -716,7 +716,6 @@ def generate_ai_brief(
 # UI
 # -----------------------------
 st.title("Industrial Decarbonization Decision Tool")
-st.caption("Prototype TFG – Carlos Falcó")
 
 with st.sidebar:
     st.header("Mode")
