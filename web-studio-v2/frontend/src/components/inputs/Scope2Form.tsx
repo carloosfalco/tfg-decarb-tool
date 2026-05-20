@@ -90,6 +90,13 @@ export function Scope2Form({
         </div>
       </div>
 
+      <div className="row-header scope-section-header scope-section-header--electricity">
+        <div>
+          <h3>Electricidad comprada</h3>
+          <p className="muted">Selecciona el método de cálculo e introduce el consumo eléctrico anual con el factor correspondiente.</p>
+        </div>
+      </div>
+
       <div className={value.electricity_method === "location" ? "scope2-method-grid" : "form-grid__two"}>
         <label>
           <span>Método de cálculo</span>
@@ -133,7 +140,7 @@ export function Scope2Form({
 
       {value.electricity_method === "market" ? (
         <>
-          <div className="row-header">
+          <div className="row-header scope-section-header scope-section-header--market">
             <div>
               <h3>Comercializadoras</h3>
               <p className="muted">
@@ -270,6 +277,13 @@ export function Scope2Form({
           ) : null}
         </>
       ) : null}
+
+      <div className="row-header scope-section-header scope-section-header--heat">
+        <div>
+          <h3>Calor / vapor comprado</h3>
+          <p className="muted">Registra energía térmica adquirida y su factor de emisión específico cuando aplique.</p>
+        </div>
+      </div>
 
       <div className="form-grid__two">
         <label>

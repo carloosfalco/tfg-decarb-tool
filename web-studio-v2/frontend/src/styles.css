@@ -2098,9 +2098,9 @@ label {
 .scope-section-header {
   position: relative;
   isolation: isolate;
-  min-height: 86px;
+  min-height: 76px;
   margin-top: 14px;
-  padding: 18px 20px 18px 86px;
+  padding: 18px 20px 18px 24px;
   border: 1px solid rgba(17, 32, 45, 0.1);
   border-radius: 8px;
   overflow: hidden;
@@ -2114,24 +2114,6 @@ label {
   inset: 0 auto 0 0;
   width: 8px;
   background: var(--scope-section-accent, var(--brand));
-}
-
-.scope-section-header::after {
-  content: var(--scope-section-index, "01");
-  position: absolute;
-  left: 24px;
-  top: 50%;
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  transform: translateY(-50%);
-  background: var(--scope-section-accent, var(--brand));
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 900;
-  letter-spacing: 0;
 }
 
 .scope-section-header h3 {
@@ -2149,17 +2131,26 @@ label {
 }
 
 .scope-section-header--stationary {
-  --scope-section-index: "01";
   --scope-section-accent: #0d6b5f;
 }
 
 .scope-section-header--mobile {
-  --scope-section-index: "02";
   --scope-section-accent: #235c9f;
 }
 
 .scope-section-header--fugitive {
-  --scope-section-index: "03";
+  --scope-section-accent: #a45725;
+}
+
+.scope-section-header--electricity {
+  --scope-section-accent: #0d6b5f;
+}
+
+.scope-section-header--market {
+  --scope-section-accent: #235c9f;
+}
+
+.scope-section-header--heat {
   --scope-section-accent: #a45725;
 }
 
@@ -2778,14 +2769,7 @@ table th {
 
   .scope-section-header {
     min-height: auto;
-    padding: 16px 16px 16px 68px;
-  }
-
-  .scope-section-header::after {
-    left: 18px;
-    width: 34px;
-    height: 34px;
-    font-size: 12px;
+    padding: 16px 16px 16px 20px;
   }
 
   .scope-section-header h3 {
