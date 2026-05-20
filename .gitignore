@@ -6,3 +6,31 @@ __pycache__/
 .mypy_cache/
 
 .streamlit/secrets.toml
+parallel-web-app/backend/.env
+backend/.env
+frontend/node_modules/
+frontend/dist/
+
+# Local environment files
+.env
+.env.local
+*.local
+
+# Dependencies
+node_modules/
+.venv/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Runtime logs
+*.log
+
+# Tool caches
+.vite/
+
+# Local generated folders
+web-studio-v2-deploy/
+tmp-widget-tfg/

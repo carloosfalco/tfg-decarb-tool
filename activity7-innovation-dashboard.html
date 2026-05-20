@@ -1,0 +1,2325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activity 7 - Innovation Dashboard | HopBrain</title>
+  <style>
+    :root {
+      --blue: #0072ff;
+      --blue-dark: #0457c7;
+      --blue-soft: #eaf3ff;
+      --cyan: #24c6dc;
+      --ink: #111827;
+      --muted: #667085;
+      --line: #d9e2ef;
+      --panel: #f5f7fb;
+      --white: #ffffff;
+      --green: #16a34a;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --violet: #7c3aed;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #eef3f9;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .shell {
+      width: min(1440px, 100%);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .dashboard {
+      min-height: calc(100vh - 40px);
+      background: var(--white);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: center;
+      padding: 18px 24px 14px;
+      border-bottom: 1px solid var(--line);
+      background:
+        linear-gradient(90deg, rgba(0, 114, 255, 0.09), rgba(36, 198, 220, 0.04) 42%, rgba(255, 255, 255, 0) 72%),
+        var(--white);
+    }
+
+    .brandline {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .logo {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius);
+      color: var(--white);
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--blue), var(--cyan));
+      box-shadow: 0 10px 24px rgba(0, 114, 255, 0.22);
+      flex: 0 0 auto;
+    }
+
+    .eyebrow {
+      margin: 0 0 3px;
+      color: var(--blue-dark);
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(22px, 3vw, 34px);
+      line-height: 1.08;
+    }
+
+    .subtitle {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      padding: 5px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .tab {
+      min-width: 132px;
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .tab.active {
+      background: var(--blue);
+      color: var(--white);
+      box-shadow: 0 8px 18px rgba(0, 114, 255, 0.22);
+    }
+
+    .ghost-btn {
+      min-width: 44px;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--white);
+      color: var(--blue-dark);
+      cursor: pointer;
+      font-weight: 900;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+    }
+
+    .screen {
+      display: none;
+      padding: 20px 24px 24px;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .slide-head {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 18px;
+      align-items: stretch;
+      margin-bottom: 16px;
+    }
+
+    .summary-band {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      padding: 15px;
+    }
+
+    .summary-band h2,
+    .section-title {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+    }
+
+    .summary-band p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .decision-note {
+      border: 1px solid rgba(0, 114, 255, 0.28);
+      border-left: 5px solid var(--blue);
+      border-radius: var(--radius);
+      background: var(--blue-soft);
+      padding: 15px;
+    }
+
+    .decision-note strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--blue-dark);
+      font-size: 13px;
+      text-transform: uppercase;
+    }
+
+    .decision-note p {
+      margin: 0;
+      color: #24415f;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .process-layout {
+      display: grid;
+      grid-template-columns: 1.15fr 2.25fr;
+      gap: 16px;
+    }
+
+    .pipeline-panel,
+    .card,
+    .wide-panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--white);
+    }
+
+    .pipeline-panel {
+      padding: 16px;
+      background: linear-gradient(180deg, #ffffff, #f7faff);
+    }
+
+    .pipeline {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .pipe-step {
+      display: grid;
+      grid-template-columns: 34px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--white);
+      cursor: pointer;
+      transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+
+    .pipe-step:hover,
+    .pipe-step.active {
+      border-color: rgba(0, 114, 255, 0.55);
+      box-shadow: 0 10px 24px rgba(0, 114, 255, 0.12);
+      transform: translateY(-1px);
+    }
+
+    .step-num {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--blue-soft);
+      color: var(--blue-dark);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .pipe-step b {
+      display: block;
+      font-size: 13px;
+    }
+
+    .pipe-step span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .mini-progress {
+      width: 58px;
+      height: 7px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #dbe7f6;
+    }
+
+    .mini-progress i,
+    .progress i {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--blue), var(--cyan));
+    }
+
+    .stage-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .stage-card {
+      min-height: 166px;
+      padding: 14px;
+      border-top: 4px solid var(--blue);
+      background: #ffffff;
+      cursor: pointer;
+      transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease, opacity 160ms ease;
+    }
+
+    .stage-card:hover,
+    .stage-card.active {
+      border-color: rgba(0, 114, 255, 0.55);
+      box-shadow: 0 12px 28px rgba(0, 114, 255, 0.13);
+      transform: translateY(-1px);
+    }
+
+    .stage-card.dimmed {
+      opacity: 0.62;
+    }
+
+    .stage-card.hidden,
+    .pipe-step.hidden {
+      display: none;
+    }
+
+    .stage-top {
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+
+    .stage-title {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.22;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: max-content;
+      padding: 5px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .badge.green {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge.amber {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge.blue {
+      background: var(--blue-soft);
+      color: var(--blue-dark);
+    }
+
+    .badge.red {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .label {
+      margin: 0 0 3px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .value {
+      margin: 0;
+      color: #243447;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .stage-card .rows {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px 12px;
+    }
+
+    .insight {
+      grid-column: 1 / -1;
+      margin-top: 2px;
+      padding: 8px;
+      border-radius: 6px;
+      background: var(--panel);
+      color: #334155;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .interactive-panel {
+      margin-top: 14px;
+      padding: 13px;
+      border: 1px solid rgba(0, 114, 255, 0.25);
+      border-radius: var(--radius);
+      background: var(--blue-soft);
+    }
+
+    .interactive-panel h3 {
+      margin: 0 0 8px;
+      color: var(--blue-dark);
+      font-size: 15px;
+    }
+
+    .interactive-panel p {
+      margin: 0 0 9px;
+      color: #334155;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .control-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+
+    .control-strip b {
+      color: #344054;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .filter-group,
+    .scenario-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .filter-btn,
+    .scenario-btn {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--white);
+      color: #344054;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 900;
+      padding: 7px 10px;
+    }
+
+    .filter-btn.active,
+    .scenario-btn.active {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: var(--white);
+    }
+
+    .signal-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 7px;
+    }
+
+    .signal {
+      padding: 8px;
+      border-radius: 6px;
+      background: var(--white);
+      border: 1px solid var(--line);
+    }
+
+    .signal b {
+      display: block;
+      color: var(--ink);
+      font-size: 15px;
+    }
+
+    .signal span {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .metric-card {
+      padding: 13px;
+      border-left: 4px solid var(--blue);
+      background: var(--white);
+    }
+
+    .metric-value {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 900;
+    }
+
+    .metric-name {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .scenario-lab {
+      margin-bottom: 14px;
+      padding: 14px;
+      border: 1px solid rgba(0, 114, 255, 0.25);
+      border-radius: var(--radius);
+      background: linear-gradient(90deg, var(--blue-soft), #ffffff);
+    }
+
+    .scenario-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .scenario-head h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .scenario-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .slider-card {
+      padding: 11px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--white);
+    }
+
+    .slider-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      color: #344054;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin: 12px 0 7px;
+      accent-color: var(--blue);
+      cursor: pointer;
+    }
+
+    .scenario-result {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: 1.2fr repeat(3, 1fr);
+      gap: 9px;
+    }
+
+    .result-card {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--white);
+    }
+
+    .result-card b {
+      display: block;
+      color: var(--blue-dark);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .result-card span {
+      display: block;
+      margin-top: 5px;
+      color: var(--ink);
+      font-size: 18px;
+      font-weight: 900;
+    }
+
+    .result-card p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .system-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap: 14px;
+    }
+
+    .wide-panel {
+      padding: 15px;
+    }
+
+    .okr-list {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .okr {
+      padding: 12px;
+      border-radius: var(--radius);
+      background: var(--panel);
+      border: 1px solid var(--line);
+    }
+
+    .okr b {
+      display: block;
+      color: var(--blue-dark);
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .okr p {
+      margin: 6px 0 0;
+      color: #344054;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .horizon-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .horizon {
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, #ffffff, #f8fbff);
+      cursor: pointer;
+      transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+
+    .horizon:hover,
+    .horizon.active {
+      border-color: rgba(0, 114, 255, 0.55);
+      box-shadow: 0 12px 28px rgba(0, 114, 255, 0.12);
+      transform: translateY(-1px);
+    }
+
+    .horizon h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .horizon p {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .chipline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .chip {
+      padding: 5px 7px;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: var(--blue-dark);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .portfolio {
+      display: grid;
+      grid-template-columns: 170px 1fr;
+      gap: 16px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .donut {
+      width: 155px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: conic-gradient(var(--blue) 0 50%, var(--cyan) 50% 85%, var(--violet) 85% 100%);
+      position: relative;
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+    }
+
+    .donut::after {
+      content: "Portfolio";
+      position: absolute;
+      inset: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--white);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 900;
+      text-align: center;
+    }
+
+    .bar-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 92px 1fr 40px;
+      gap: 10px;
+      align-items: center;
+      color: #334155;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .progress {
+      height: 12px;
+      border-radius: 999px;
+      background: #dbe7f6;
+      overflow: hidden;
+    }
+
+    .cyan i {
+      background: var(--cyan);
+    }
+
+    .violet i {
+      background: var(--violet);
+    }
+
+    .decision-table {
+      width: 100%;
+      margin-top: 12px;
+      border-collapse: collapse;
+      overflow: hidden;
+      border-radius: var(--radius);
+      font-size: 12px;
+    }
+
+    .decision-table th,
+    .decision-table td {
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    .decision-table th {
+      background: var(--panel);
+      color: #475467;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+
+    .decision-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .risk-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: 6px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .risk-dot.med {
+      background: var(--amber);
+    }
+
+    .risk-dot.high {
+      background: var(--red);
+    }
+
+    .forecast-bars {
+      display: flex;
+      align-items: end;
+      gap: 13px;
+      height: 150px;
+      padding: 14px 4px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .forecast {
+      display: grid;
+      grid-template-rows: 1fr auto;
+      flex: 1;
+      height: 100%;
+      text-align: center;
+      color: #475467;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .forecast span {
+      align-self: end;
+      display: block;
+      min-height: 24px;
+      border-radius: 6px 6px 0 0;
+      background: linear-gradient(180deg, var(--blue), var(--cyan));
+      color: var(--white);
+      padding-top: 7px;
+      transform-origin: bottom;
+      animation: growBar 720ms ease both;
+    }
+
+    @keyframes growBar {
+      from {
+        transform: scaleY(0.12);
+        opacity: 0.55;
+      }
+      to {
+        transform: scaleY(1);
+        opacity: 1;
+      }
+    }
+
+    .decision-spotlight {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: var(--radius);
+      background: var(--blue-soft);
+      border: 1px solid rgba(0, 114, 255, 0.25);
+    }
+
+    .decision-spotlight b {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--blue-dark);
+      font-size: 13px;
+      text-transform: uppercase;
+    }
+
+    .decision-spotlight p {
+      margin: 0;
+      color: #334155;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .takeaways {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .takeaway {
+      display: grid;
+      grid-template-columns: 8px 1fr;
+      gap: 9px;
+      align-items: start;
+      color: #344054;
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .takeaway::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      margin-top: 5px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+
+    .footer-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 14px;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      background: #0f172a;
+      color: #dbeafe;
+      font-size: 12px;
+    }
+
+    .footer-strip b {
+      color: var(--white);
+    }
+
+    .innovation-landing {
+      --explode: 0;
+      --hero-opacity: 1;
+      --final-opacity: 0;
+      min-height: 470vh;
+      color: #f7fbff;
+      background:
+        radial-gradient(circle at 72% 22%, rgba(0, 114, 255, 0.16), transparent 30%),
+        radial-gradient(circle at 22% 72%, rgba(36, 198, 220, 0.14), transparent 32%),
+        linear-gradient(180deg, #030712 0%, #07111f 48%, #030712 100%);
+      position: relative;
+    }
+
+    .landing-sticky {
+      position: sticky;
+      top: 0;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(320px, 0.86fr) minmax(520px, 1.14fr);
+      gap: clamp(22px, 4vw, 58px);
+      align-items: center;
+      padding: clamp(22px, 5vw, 72px);
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .landing-sticky::before {
+      content: "";
+      position: absolute;
+      inset: 8% -8% -18%;
+      z-index: -2;
+      background:
+        linear-gradient(rgba(125, 221, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(125, 221, 255, 0.08) 1px, transparent 1px);
+      background-size: 64px 64px;
+      transform: perspective(900px) rotateX(62deg);
+      transform-origin: 50% 78%;
+      opacity: 0.4;
+      mask-image: linear-gradient(180deg, transparent, #000 22%, #000 76%, transparent);
+    }
+
+    .landing-sticky::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: -1;
+      background:
+        linear-gradient(90deg, rgba(3, 7, 18, 0.88), rgba(3, 7, 18, 0.18) 52%, rgba(3, 7, 18, 0.75)),
+        radial-gradient(circle at 62% 46%, rgba(36, 198, 220, 0.18), transparent 28%);
+      pointer-events: none;
+    }
+
+    .landing-copy {
+      max-width: 650px;
+      opacity: var(--hero-opacity);
+      transition: opacity 120ms linear;
+    }
+
+    .landing-kicker {
+      margin: 0 0 14px;
+      color: #7ddfff;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .landing-copy h1 {
+      color: #ffffff;
+      font-size: clamp(42px, 6vw, 88px);
+      line-height: 0.94;
+      letter-spacing: 0;
+    }
+
+    .landing-copy p:not(.landing-kicker) {
+      margin: 22px 0 0;
+      color: rgba(247, 251, 255, 0.76);
+      font-size: clamp(16px, 1.5vw, 21px);
+      line-height: 1.5;
+    }
+
+    .landing-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 30px;
+    }
+
+    .landing-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 52px;
+      padding: 0 20px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      color: #ffffff;
+      font-weight: 900;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .landing-btn.primary {
+      color: #03101a;
+      background: linear-gradient(135deg, #82e9ff, #0072ff);
+      box-shadow: 0 20px 60px rgba(0, 114, 255, 0.3);
+    }
+
+    .landing-btn.secondary {
+      background: rgba(255, 255, 255, 0.07);
+      backdrop-filter: blur(16px);
+    }
+
+    .car-stage {
+      position: relative;
+      min-height: min(680px, 76vh);
+      perspective: 1200px;
+      transform-style: preserve-3d;
+    }
+
+    .car-stage::before {
+      content: "";
+      position: absolute;
+      left: 6%;
+      right: 4%;
+      bottom: 12%;
+      height: 22%;
+      border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(0, 0, 0, 0.55), transparent 68%);
+      filter: blur(10px);
+      opacity: 0.68;
+    }
+
+    .car-scene {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      transform:
+        rotateX(0deg)
+        rotateZ(0deg);
+      transform-style: preserve-3d;
+    }
+
+    .car-svg {
+      overflow: visible;
+      filter: drop-shadow(0 34px 54px rgba(0, 0, 0, 0.42));
+    }
+
+    .car-svg .car-piece {
+      position: static;
+      transform-box: fill-box;
+      transform-origin: center;
+      transition: filter 120ms linear;
+      box-shadow: none;
+      will-change: transform;
+    }
+
+    .car-outline {
+      stroke: rgba(255, 255, 255, 0.34);
+      stroke-width: 2;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+
+    .urus-yellow {
+      fill: url(#urusYellow);
+    }
+
+    .urus-yellow-dark {
+      fill: url(#urusYellowDark);
+    }
+
+    .urus-black {
+      fill: #05070b;
+    }
+
+    .urus-glass {
+      fill: url(#urusGlass);
+      stroke: rgba(255, 255, 255, 0.3);
+      stroke-width: 2;
+    }
+
+    .urus-light {
+      fill: #dff8ff;
+      filter: drop-shadow(0 0 8px rgba(143, 231, 255, 0.95));
+    }
+
+    .urus-red-light {
+      fill: #ff435f;
+      filter: drop-shadow(0 0 8px rgba(255, 67, 95, 0.82));
+    }
+
+    .wheel-tire {
+      fill: #05070b;
+      stroke: #1d2732;
+      stroke-width: 8;
+    }
+
+    .wheel-rim {
+      fill: #e8eef3;
+      stroke: #141a22;
+      stroke-width: 5;
+    }
+
+    .wheel-spoke {
+      stroke: #0b111a;
+      stroke-width: 8;
+      stroke-linecap: round;
+    }
+
+    .wheel-caliper {
+      fill: #ffc400;
+    }
+
+    .svg-shadow {
+      fill: rgba(0, 0, 0, 0.35);
+      filter: blur(7px);
+    }
+
+    .technical-line {
+      stroke: rgba(130, 233, 255, 0.24);
+      stroke-width: 1.5;
+      stroke-dasharray: 7 9;
+      fill: none;
+    }
+
+    .car-chassis {
+      left: 22%;
+      top: 51%;
+      width: 56%;
+      height: 13%;
+      border: 1px solid rgba(125, 221, 255, 0.38);
+      border-radius: 18px;
+      background: linear-gradient(135deg, #1a3958, #071525);
+      box-shadow: inset 0 0 28px rgba(125, 221, 255, 0.12), 0 24px 70px rgba(0, 0, 0, 0.4);
+    }
+
+    .car-body {
+      left: 18%;
+      top: 35%;
+      width: 64%;
+      height: 24%;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 34px 42px 25px 24px;
+      background:
+        linear-gradient(150deg, rgba(255, 255, 255, 0.24), transparent 30%),
+        linear-gradient(135deg, #0d7ac7, #092746 64%, #07111f);
+    }
+
+    .car-roof {
+      left: 35%;
+      top: 24%;
+      width: 32%;
+      height: 18%;
+      border: 1px solid rgba(125, 221, 255, 0.34);
+      border-radius: 34px 34px 10px 10px;
+      background: linear-gradient(135deg, rgba(142, 234, 255, 0.78), rgba(4, 23, 38, 0.82));
+    }
+
+    .car-hood {
+      left: 20%;
+      top: 38%;
+      width: 21%;
+      height: 15%;
+      border-radius: 28px 10px 10px 22px;
+      background: linear-gradient(135deg, #1594e8, #073356);
+    }
+
+    .car-rear {
+      right: 18%;
+      top: 38%;
+      width: 20%;
+      height: 15%;
+      border-radius: 10px 28px 22px 10px;
+      background: linear-gradient(135deg, #0b5894, #061928);
+    }
+
+    .car-door {
+      top: 40%;
+      width: 18%;
+      height: 18%;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(22, 151, 225, 0.92), rgba(5, 28, 48, 0.92));
+    }
+
+    .car-door.left {
+      left: 39%;
+    }
+
+    .car-door.right {
+      left: 54%;
+    }
+
+    .car-wheel {
+      width: 13%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      border: 10px solid #07111f;
+      background:
+        radial-gradient(circle, #7ddfff 0 13%, #1f3b52 14% 30%, #050b12 31% 100%);
+      box-shadow: inset 0 0 0 5px rgba(255, 255, 255, 0.08), 0 18px 40px rgba(0, 0, 0, 0.45);
+    }
+
+    .wheel-front-left {
+      left: 25%;
+      top: 58%;
+    }
+
+    .wheel-front-right {
+      left: 25%;
+      top: 41%;
+    }
+
+    .wheel-rear-left {
+      right: 25%;
+      top: 58%;
+    }
+
+    .wheel-rear-right {
+      right: 25%;
+      top: 41%;
+    }
+
+    .car-seat {
+      width: 8%;
+      height: 13%;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #f7fbff, #6f8497);
+    }
+
+    .seat-one {
+      left: 43%;
+      top: 39%;
+    }
+
+    .seat-two {
+      left: 55%;
+      top: 39%;
+    }
+
+    .car-dashboard {
+      left: 36%;
+      top: 43%;
+      width: 17%;
+      height: 8%;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #111827, #4cc9f0);
+    }
+
+    .car-steering {
+      left: 39%;
+      top: 48%;
+      width: 6%;
+      aspect-ratio: 1;
+      border: 5px solid #d7f6ff;
+      border-radius: 50%;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .car-battery {
+      left: 41%;
+      top: 58%;
+      width: 22%;
+      height: 10%;
+      border: 1px solid rgba(107, 255, 211, 0.48);
+      border-radius: 14px;
+      background:
+        repeating-linear-gradient(90deg, rgba(107, 255, 211, 0.16) 0 12px, transparent 12px 24px),
+        linear-gradient(135deg, #08261f, #0d7b66);
+      box-shadow: 0 0 36px rgba(107, 255, 211, 0.22);
+    }
+
+    .car-light {
+      width: 7%;
+      height: 4%;
+      border-radius: 999px;
+      background: #dff9ff;
+      box-shadow: 0 0 28px rgba(130, 233, 255, 0.75);
+    }
+
+    .light-front {
+      left: 17%;
+      top: 47%;
+    }
+
+    .light-rear {
+      right: 17%;
+      top: 47%;
+      background: #ff5575;
+      box-shadow: 0 0 24px rgba(255, 85, 117, 0.75);
+    }
+
+    .landing-label {
+      position: absolute;
+      z-index: 4;
+      max-width: 230px;
+      padding: 12px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 16px;
+      background: rgba(5, 14, 26, 0.62);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 18px 54px rgba(0, 0, 0, 0.28);
+      color: rgba(247, 251, 255, 0.82);
+      font-size: 13px;
+      line-height: 1.35;
+      opacity: var(--explode);
+    }
+
+    .landing-label b {
+      display: block;
+      margin-bottom: 4px;
+      color: #82e9ff;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .label-one {
+      top: 23%;
+      right: 2%;
+    }
+
+    .label-two {
+      top: 63%;
+      left: 4%;
+    }
+
+    .label-three {
+      right: 7%;
+      bottom: 12%;
+    }
+
+    .landing-final-cta {
+      position: absolute;
+      left: clamp(22px, 5vw, 72px);
+      bottom: clamp(26px, 5vw, 70px);
+      z-index: 6;
+      max-width: 540px;
+      opacity: var(--final-opacity);
+      pointer-events: none;
+    }
+
+    .landing-final-cta .landing-btn {
+      pointer-events: auto;
+    }
+
+    .landing-final-cta h2 {
+      margin: 0 0 18px;
+      color: #ffffff;
+      font-size: clamp(28px, 3vw, 46px);
+      line-height: 1.02;
+    }
+
+    .landing-end-anchor {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 1px;
+      height: 1px;
+    }
+
+    @media (max-width: 1100px) {
+      .topbar,
+      .slide-head,
+      .process-layout,
+      .system-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .tabs {
+        width: 100%;
+      }
+
+      .actions {
+        justify-content: stretch;
+      }
+
+      .tab {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .metric-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .stage-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .scenario-result {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .landing-sticky {
+        grid-template-columns: 1fr;
+        align-content: center;
+      }
+
+      .landing-copy {
+        max-width: 820px;
+      }
+
+      .car-stage {
+        min-height: 54vh;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        padding: 10px;
+      }
+
+      .screen,
+      .topbar {
+        padding-left: 14px;
+        padding-right: 14px;
+      }
+
+      .stage-grid,
+      .okr-list,
+      .horizon-grid,
+      .metric-grid,
+      .portfolio,
+      .scenario-grid,
+      .scenario-result {
+        grid-template-columns: 1fr;
+      }
+
+      .donut {
+        margin: 0 auto;
+      }
+
+      .stage-card .rows {
+        grid-template-columns: 1fr;
+      }
+
+      .decision-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+      }
+
+      .innovation-landing {
+        min-height: 360vh;
+      }
+
+      .landing-sticky {
+        padding: 82px 18px 26px;
+      }
+
+      .landing-copy h1 {
+        font-size: 36px;
+      }
+
+      .landing-actions {
+        flex-direction: column;
+      }
+
+      .landing-btn {
+        width: 100%;
+      }
+
+      .car-stage {
+        min-height: 44vh;
+      }
+
+      .landing-label {
+        display: none;
+      }
+
+      .landing-final-cta {
+        left: 18px;
+        right: 18px;
+        bottom: 24px;
+      }
+    }
+
+    @media print {
+      body {
+        background: var(--white);
+      }
+
+      .shell {
+        padding: 0;
+      }
+
+      .dashboard {
+        min-height: auto;
+        box-shadow: none;
+        border: 0;
+      }
+
+      .ghost-btn {
+        display: none;
+      }
+
+      .innovation-landing {
+        display: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .innovation-landing {
+        --explode: 1;
+        --hero-opacity: 1;
+        --final-opacity: 1;
+        min-height: auto;
+      }
+
+      .landing-sticky {
+        position: relative;
+      }
+
+      .car-piece,
+      .landing-copy,
+      .landing-label,
+      .landing-final-cta {
+        transition: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="innovation-landing" id="intro-landing" aria-label="Innovation dashboard cinematic landing">
+    <div class="landing-sticky">
+      <div class="landing-copy">
+        <p class="landing-kicker">Activity 7 · Innovation Management System</p>
+        <h1>Exploded view of innovation decision-making</h1>
+        <p>
+          A premium visual introduction to HopBrain's innovation management dashboard: disassemble complexity,
+          inspect every component and turn signals into strategic decisions.
+        </p>
+        <div class="landing-actions">
+          <a class="landing-btn primary" href="#dashboard-app">Entrar en la herramienta</a>
+          <a class="landing-btn secondary" href="#car-exploded-final">Ver vista explosionada</a>
+        </div>
+      </div>
+
+      <div class="car-stage" aria-label="Scroll controlled exploded car view">
+        <svg class="car-scene car-svg" viewBox="0 0 1000 540" role="img" aria-label="Yellow premium SUV exploded view">
+          <defs>
+            <linearGradient id="urusYellow" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#ffe16a" />
+              <stop offset="38%" stop-color="#ffc400" />
+              <stop offset="100%" stop-color="#c97700" />
+            </linearGradient>
+            <linearGradient id="urusYellowDark" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#f5aa00" />
+              <stop offset="100%" stop-color="#8c4f00" />
+            </linearGradient>
+            <linearGradient id="urusGlass" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0%" stop-color="#17212b" />
+              <stop offset="54%" stop-color="#0b0f14" />
+              <stop offset="100%" stop-color="#314655" />
+            </linearGradient>
+          </defs>
+
+          <ellipse class="svg-shadow" cx="522" cy="430" rx="405" ry="62" />
+          <path class="technical-line" d="M125 322 C275 210, 555 160, 887 250" />
+          <path class="technical-line" d="M185 424 C365 470, 646 470, 880 386" />
+
+          <g class="car-piece" style="--tx: 0px; --ty: 92px; --tz: 60px; --rot: 0deg;">
+            <path class="urus-black car-outline" d="M168 386 L304 398 L780 394 L890 348 L848 425 L244 440 Z" />
+            <rect x="405" y="386" width="238" height="42" rx="16" fill="#10202a" stroke="rgba(125,221,255,.42)" />
+            <rect x="433" y="394" width="184" height="22" rx="8" fill="#0d7b66" opacity=".9" />
+          </g>
+
+          <g class="car-piece" style="--tx: 0px; --ty: -96px; --tz: 110px; --rot: 0deg; --scale: .03;">
+            <path class="urus-yellow car-outline" d="M96 300 C122 236, 185 208, 286 194 L418 128 C515 92, 691 100, 790 158 C854 190, 904 236, 932 306 L905 368 L738 375 C711 311, 655 283, 597 296 C544 307, 511 344, 498 382 L324 381 C306 323, 258 291, 199 301 C151 309, 118 337, 102 378 L70 362 Z" />
+            <path fill="#e79500" opacity=".65" d="M111 311 C241 330, 546 337, 912 306 L901 348 C650 374, 303 365, 87 346 Z" />
+            <path fill="#fff4b2" opacity=".42" d="M146 256 C296 207, 574 168, 804 184 C644 118, 431 116, 278 196 C216 202, 171 221, 146 256 Z" />
+          </g>
+
+          <g class="car-piece" style="--tx: -265px; --ty: -92px; --tz: 145px; --rot: -5deg;">
+            <path class="urus-yellow car-outline" d="M92 300 C120 237, 191 209, 305 198 C352 200, 385 213, 420 238 L340 300 L122 323 Z" />
+            <path fill="#f9d23b" opacity=".75" d="M143 264 L317 216 L386 239 L331 285 L110 309 Z" />
+          </g>
+
+          <g class="car-piece" style="--tx: 270px; --ty: -84px; --tz: 145px; --rot: 6deg;">
+            <path class="urus-yellow-dark car-outline" d="M756 168 C839 191, 900 240, 932 306 L909 363 L804 354 C803 287, 780 222, 756 168 Z" />
+            <path fill="#5a3200" opacity=".18" d="M812 201 C867 238, 901 284, 909 342 L831 329 C829 281, 821 238, 812 201 Z" />
+          </g>
+
+          <g class="car-piece" style="--tx: 0px; --ty: -210px; --tz: 210px; --rot: 0deg;">
+            <path class="urus-yellow car-outline" d="M341 193 L425 124 C520 91, 686 101, 780 156 L820 214 L678 211 L617 151 L446 146 L377 204 Z" />
+            <path class="urus-glass" d="M426 145 C492 113, 611 114, 700 136 L760 202 L641 199 L598 151 L449 150 L395 202 L318 205 Z" />
+            <path fill="#10151d" d="M646 201 L760 202 L706 140 C752 151, 793 175, 820 214 Z" opacity=".85" />
+          </g>
+
+          <g class="car-piece" style="--tx: -185px; --ty: -50px; --tz: 170px; --rot: -11deg;">
+            <path class="urus-yellow car-outline" d="M337 221 L487 211 L507 373 L327 376 C324 309, 329 262, 337 221 Z" />
+            <path fill="#d88600" opacity=".5" d="M358 249 L478 242 L489 350 L344 354 Z" />
+            <rect x="452" y="254" width="34" height="13" rx="6" fill="#704000" opacity=".75" />
+          </g>
+
+          <g class="car-piece" style="--tx: 205px; --ty: -44px; --tz: 170px; --rot: 10deg;">
+            <path class="urus-yellow-dark car-outline" d="M503 211 L704 215 L778 361 L512 373 C514 307, 510 257, 503 211 Z" />
+            <path fill="#b86800" opacity=".44" d="M530 244 L681 247 L745 340 L527 353 Z" />
+            <rect x="690" y="260" width="34" height="13" rx="6" fill="#704000" opacity=".75" />
+          </g>
+
+          <g class="car-piece" style="--tx: -298px; --ty: 38px; --tz: 185px; --rot: -7deg;">
+            <path class="urus-black" d="M89 320 L236 306 C201 333, 185 358, 174 393 L76 381 Z" />
+            <path class="urus-light" d="M128 285 L260 268 L292 286 L141 310 Z" />
+            <path fill="#05070b" d="M126 332 L309 321 L284 355 L111 369 Z" />
+            <path fill="#f1a800" d="M129 377 L311 366 L303 388 L120 399 Z" />
+          </g>
+
+          <g class="car-piece" style="--tx: 292px; --ty: 22px; --tz: 165px; --rot: 8deg;">
+            <path class="urus-black" d="M812 306 L930 307 L907 367 L786 362 C793 340, 802 321, 812 306 Z" />
+            <path class="urus-red-light" d="M890 286 L932 300 L920 322 L876 313 Z" />
+          </g>
+
+          <g class="car-piece" style="--tx: -88px; --ty: -154px; --tz: 230px; --rot: -6deg;">
+            <path fill="#1b2028" d="M430 238 L472 241 L485 338 L425 341 Z" />
+            <path fill="#2e3944" d="M438 245 L469 248 L476 302 L434 303 Z" />
+          </g>
+
+          <g class="car-piece" style="--tx: 62px; --ty: -158px; --tz: 230px; --rot: 6deg;">
+            <path fill="#1b2028" d="M546 235 L591 237 L615 333 L553 337 Z" />
+            <path fill="#2e3944" d="M554 244 L585 246 L599 299 L558 303 Z" />
+          </g>
+
+          <g class="car-piece" style="--tx: -205px; --ty: -86px; --tz: 210px; --rot: -18deg;">
+            <path fill="#111827" d="M342 260 L408 258 L416 287 L350 292 Z" />
+            <circle cx="363" cy="285" r="18" fill="none" stroke="#dff8ff" stroke-width="5" />
+          </g>
+
+          <g class="car-piece" style="--tx: 0px; --ty: 185px; --tz: 160px; --rot: 0deg;">
+            <rect x="410" y="404" width="235" height="54" rx="18" fill="#0b6b54" stroke="rgba(119,255,218,.65)" stroke-width="3" />
+            <path d="M438 416 H618 M438 431 H618 M438 446 H618" stroke="rgba(183,255,235,.62)" stroke-width="4" />
+            <text x="528" y="438" fill="#dfffee" font-size="19" font-weight="800" text-anchor="middle">BATTERY</text>
+          </g>
+
+          <g class="car-piece" style="--tx: -245px; --ty: 152px; --tz: 150px; --rot: -34deg;">
+            <ellipse class="wheel-tire" cx="230" cy="386" rx="78" ry="82" />
+            <ellipse class="wheel-rim" cx="230" cy="386" rx="45" ry="49" />
+            <path class="wheel-spoke" d="M230 342 V430 M190 386 H270 M202 352 L258 420 M258 352 L202 420" />
+            <circle class="wheel-caliper" cx="250" cy="393" r="11" />
+          </g>
+
+          <g class="car-piece" style="--tx: 248px; --ty: 152px; --tz: 150px; --rot: 34deg;">
+            <ellipse class="wheel-tire" cx="678" cy="385" rx="83" ry="87" />
+            <ellipse class="wheel-rim" cx="678" cy="385" rx="48" ry="52" />
+            <path class="wheel-spoke" d="M678 337 V433 M633 385 H723 M648 348 L708 422 M708 348 L648 422" />
+            <circle class="wheel-caliper" cx="700" cy="392" r="12" />
+          </g>
+
+          <g class="car-piece" style="--tx: -315px; --ty: -128px; --tz: 100px; --rot: 25deg; --scale: -.18;">
+            <ellipse class="wheel-tire" cx="205" cy="350" rx="56" ry="60" opacity=".78" />
+            <ellipse class="wheel-rim" cx="205" cy="350" rx="31" ry="34" opacity=".86" />
+          </g>
+
+          <g class="car-piece" style="--tx: 334px; --ty: -126px; --tz: 100px; --rot: -25deg; --scale: -.18;">
+            <ellipse class="wheel-tire" cx="748" cy="346" rx="55" ry="58" opacity=".78" />
+            <ellipse class="wheel-rim" cx="748" cy="346" rx="31" ry="33" opacity=".86" />
+          </g>
+        </svg>
+
+        <div class="landing-label label-one">
+          <b>Visualize systems</b>
+          Descompón cada módulo para entender su función dentro del sistema.
+        </div>
+        <div class="landing-label label-two">
+          <b>Analyze impact</b>
+          Convierte componentes, señales y métricas en lectura estratégica.
+        </div>
+        <div class="landing-label label-three">
+          <b>Decide with precision</b>
+          Transforma complejidad en decisiones de portfolio claras.
+        </div>
+      </div>
+
+      <div class="landing-final-cta">
+        <h2>From architecture to action: enter the dashboard.</h2>
+        <a class="landing-btn primary" href="#dashboard-app">Entrar en la herramienta</a>
+      </div>
+    </div>
+    <div class="landing-end-anchor" id="car-exploded-final" aria-hidden="true"></div>
+  </section>
+
+  <main class="shell" id="dashboard-app">
+    <article class="dashboard" aria-label="Activity 7 Innovation Dashboard">
+      <header class="topbar">
+        <div class="brandline">
+          <div class="logo" aria-hidden="true">HB</div>
+          <div>
+            <p class="eyebrow">EDEM Innovation Management · Activity 7</p>
+            <h1>HopBrain Innovation Dashboard</h1>
+            <p class="subtitle">Operational intelligence SaaS · Metrics designed for portfolio decisions, not vanity reporting</p>
+          </div>
+        </div>
+        <div class="actions">
+          <nav class="tabs" aria-label="Dashboard views">
+            <button class="tab active" data-target="process-view" type="button">Process View</button>
+            <button class="tab" data-target="system-view" type="button">System View</button>
+          </nav>
+          <button class="ghost-btn" id="print-dashboard" type="button" title="Print or save as PDF">PDF</button>
+        </div>
+      </header>
+
+      <section id="process-view" class="screen active" aria-labelledby="process-title">
+        <div class="slide-head">
+          <div class="summary-band">
+            <h2 id="process-title">Innovation Process by Stage</h2>
+            <p>HopBrain manages innovation as an evidence-based funnel: strategic fit, market opportunity, validated learning, MVP delivery, scale and portfolio review.</p>
+          </div>
+          <div class="decision-note">
+            <strong>Decision logic</strong>
+            <p>Each stage combines objective, key result, metrics and interpretation so management can decide whether to continue, pivot, scale or stop.</p>
+          </div>
+        </div>
+
+        <div class="control-strip" aria-label="Process filters">
+          <b>Filter stages by status</b>
+          <div class="filter-group">
+            <button class="filter-btn active" type="button" data-status-filter="all">All</button>
+            <button class="filter-btn" type="button" data-status-filter="on-track">On track</button>
+            <button class="filter-btn" type="button" data-status-filter="high-potential">High potential</button>
+            <button class="filter-btn" type="button" data-status-filter="attention">Needs attention</button>
+          </div>
+        </div>
+
+        <div class="process-layout">
+          <aside class="pipeline-panel" aria-label="Pipeline stage visualization">
+            <h2 class="section-title">Pipeline Signal</h2>
+            <p class="subtitle">Visual stage health and relative evidence maturity.</p>
+            <div class="pipeline">
+              <div class="pipe-step active" data-stage="alignment" data-status="on-track"><div class="step-num">1</div><div><b>Strategic Alignment</b><span>Strategy linked</span></div><div class="mini-progress"><i style="width: 88%"></i></div></div>
+              <div class="pipe-step" data-stage="discovery" data-status="high-potential"><div class="step-num">2</div><div><b>Opportunity Discovery</b><span>Market signal</span></div><div class="mini-progress"><i style="width: 76%"></i></div></div>
+              <div class="pipe-step" data-stage="ideation" data-status="on-track"><div class="step-num">3</div><div><b>Ideation</b><span>Concept flow</span></div><div class="mini-progress"><i style="width: 69%"></i></div></div>
+              <div class="pipe-step" data-stage="validation" data-status="attention"><div class="step-num">4</div><div><b>Concept Validation</b><span>Evidence gap</span></div><div class="mini-progress"><i style="width: 48%"></i></div></div>
+              <div class="pipe-step" data-stage="mvp" data-status="on-track"><div class="step-num">5</div><div><b>Development / MVP</b><span>Build progress</span></div><div class="mini-progress"><i style="width: 71%"></i></div></div>
+              <div class="pipe-step" data-stage="scaling" data-status="high-potential"><div class="step-num">6</div><div><b>Launch & Scaling</b><span>Adoption pull</span></div><div class="mini-progress"><i style="width: 82%"></i></div></div>
+              <div class="pipe-step" data-stage="learning" data-status="on-track"><div class="step-num">7</div><div><b>Learning Review</b><span>Portfolio renewal</span></div><div class="mini-progress"><i style="width: 74%"></i></div></div>
+            </div>
+            <div class="interactive-panel" aria-live="polite">
+              <h3 id="stage-detail-title">Strategic Alignment</h3>
+              <p id="stage-detail-text">Management should keep funding initiatives that reinforce AI decision support, warehouse visibility and operational efficiency.</p>
+              <div class="signal-grid">
+                <div class="signal"><b id="stage-detail-score">8.6</b><span>Score</span></div>
+                <div class="signal"><b id="stage-detail-risk">Low</b><span>Risk</span></div>
+                <div class="signal"><b id="stage-detail-action">Continue</b><span>Decision</span></div>
+              </div>
+            </div>
+          </aside>
+
+          <div class="stage-grid">
+            <section class="card stage-card active" data-stage="alignment" data-status="on-track">
+              <div class="stage-top"><h3 class="stage-title">Strategic Alignment</h3><span class="badge green">On track</span></div>
+              <div class="rows">
+                <div><p class="label">Objective</p><p class="value">Align innovation with business priorities.</p></div>
+                <div><p class="label">Key result</p><p class="value">92% of initiatives mapped to three strategic themes.</p></div>
+                <div><p class="label">Main metrics</p><p class="value">% linked to strategic goals, active innovation themes.</p></div>
+                <div><p class="label">KPIs</p><p class="value">Alignment score 8.6/10, 14 prioritized opportunities.</p></div>
+                <p class="insight">Strong fit with AI operations, warehouse productivity and logistics visibility.</p>
+              </div>
+            </section>
+
+            <section class="card stage-card" data-stage="discovery" data-status="high-potential">
+              <div class="stage-top"><h3 class="stage-title">Opportunity Discovery</h3><span class="badge blue">High potential</span></div>
+              <div class="rows">
+                <div><p class="label">Objective</p><p class="value">Identify customer, market and technology opportunities.</p></div>
+                <div><p class="label">Key result</p><p class="value">Validated 6 recurring operational pain points.</p></div>
+                <div><p class="label">Main metrics</p><p class="value">42 interviews, 31 market signals, 18 pain points detected.</p></div>
+                <div><p class="label">KPIs</p><p class="value">23 opportunities identified, quality score 81%.</p></div>
+                <p class="insight">Customer evidence points to demand for faster exception detection and planning support.</p>
+              </div>
+            </section>
+
+            <section class="card stage-card" data-stage="ideation" data-status="on-track">
+              <div class="stage-top"><h3 class="stage-title">Ideation</h3><span class="badge green">On track</span></div>
+              <div class="rows">
+                <div><p class="label">Objective</p><p class="value">Generate and select innovation ideas.</p></div>
+                <div><p class="label">Key result</p><p class="value">Shortlist concepts with measurable customer value.</p></div>
+                <div><p class="label">Main metrics</p><p class="value">96 ideas submitted, 18 shortlisted, 64% team participation.</p></div>
+                <div><p class="label">KPIs</p><p class="value">19% idea-to-concept conversion, 64% participation rate.</p></div>
+                <p class="insight">The idea funnel is broad enough, but selection should remain tied to strategic themes.</p>
+              </div>
+            </section>
+
+            <section class="card stage-card" data-stage="validation" data-status="attention">
+              <div class="stage-top"><h3 class="stage-title">Concept Validation</h3><span class="badge amber">Needs attention</span></div>
+              <div class="rows">
+                <div><p class="label">Objective</p><p class="value">Test assumptions before investing heavily.</p></div>
+                <div><p class="label">Key result</p><p class="value">Increase quality of evidence before MVP funding.</p></div>
+                <div><p class="label">Main metrics</p><p class="value">12 experiments, 47 feedback notes, 7 prototype tests.</p></div>
+                <div><p class="label">KPIs</p><p class="value">58% validation success, evidence score 6.4/10, learning velocity 2.1 weeks.</p></div>
+                <p class="insight">Validation is the current bottleneck; weak evidence should trigger pivot decisions early.</p>
+              </div>
+            </section>
+
+            <section class="card stage-card" data-stage="mvp" data-status="on-track">
+              <div class="stage-top"><h3 class="stage-title">Development / MVP</h3><span class="badge green">On track</span></div>
+              <div class="rows">
+                <div><p class="label">Objective</p><p class="value">Build and test minimum viable solutions.</p></div>
+                <div><p class="label">Key result</p><p class="value">Deliver MVPs inside budget and learning scope.</p></div>
+                <div><p class="label">Main metrics</p><p class="value">4 MVPs built, 72% development progress, 61% budget spent.</p></div>
+                <div><p class="label">KPIs</p><p class="value">9 weeks to MVP, 94% budget adherence, feasibility score 8.1/10.</p></div>
+                <p class="insight">Technical execution is healthy; continue funding only where validation evidence is solid.</p>
+              </div>
+            </section>
+
+            <section class="card stage-card" data-stage="scaling" data-status="high-potential">
+              <div class="stage-top"><h3 class="stage-title">Launch & Scaling</h3><span class="badge blue">High potential</span></div>
+              <div class="rows">
+                <div><p class="label">Objective</p><p class="value">Introduce validated innovations into market or company use.</p></div>
+                <div><p class="label">Key result</p><p class="value">Scale solutions with adoption and measurable impact.</p></div>
+                <div><p class="label">Main metrics</p><p class="value">39% adoption rate, EUR 410k revenue impact, 11% efficiency gains.</p></div>
+                <div><p class="label">KPIs</p><p class="value">73% launch success, 39% adoption, 2.4x ROI.</p></div>
+                <p class="insight">Scaling signals are strongest for AI exception management and warehouse flow tools.</p>
+              </div>
+            </section>
+
+            <section class="card stage-card" data-stage="learning" data-status="on-track">
+              <div class="stage-top"><h3 class="stage-title">Learning & Portfolio Review</h3><span class="badge green">On track</span></div>
+              <div class="rows">
+                <div><p class="label">Objective</p><p class="value">Capture learnings and improve decision-making.</p></div>
+                <div><p class="label">Key result</p><p class="value">Use evidence reviews to rebalance the portfolio quarterly.</p></div>
+                <div><p class="label">Main metrics</p><p class="value">21 lessons learned, 3 killed projects, 5 pivoted projects.</p></div>
+                <div><p class="label">KPIs</p><p class="value">Learning rate 1.8 cycles/month, portfolio health 78%.</p></div>
+                <p class="insight">Portfolio discipline is improving because stopped projects free resources for stronger bets.</p>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="footer-strip">
+          <span><b>Management question:</b> Which initiatives have enough evidence to move to MVP or scale?</span>
+          <span>Pipeline value: EUR 2.8M · Active initiatives: 28 · Strategy alignment: 92%</span>
+        </div>
+      </section>
+
+      <section id="system-view" class="screen" aria-labelledby="system-title">
+        <div class="slide-head">
+          <div class="summary-band">
+            <h2 id="system-title">Innovation Management System</h2>
+            <p>An integrated view of OKRs, indicators, horizons, portfolio balance, strategic themes, risk, investment and value forecast for HopBrain.</p>
+          </div>
+          <div class="decision-note">
+            <strong>System principle</strong>
+            <p>Metrics connect innovation storytelling to resource allocation: scale proven value, continue evidence-rich growth bets and contain uncertainty in future bets.</p>
+          </div>
+        </div>
+
+        <section class="scenario-lab" aria-label="Interactive portfolio scenario lab">
+          <div class="scenario-head">
+            <h2>Interactive Scenario Lab</h2>
+            <div class="scenario-buttons">
+              <button class="scenario-btn active" type="button" data-scenario="balanced">Balanced</button>
+              <button class="scenario-btn" type="button" data-scenario="core">Core efficiency</button>
+              <button class="scenario-btn" type="button" data-scenario="growth">Growth push</button>
+              <button class="scenario-btn" type="button" data-scenario="future">Future bets</button>
+            </div>
+          </div>
+          <div class="scenario-grid">
+            <div class="slider-card">
+              <div class="slider-top"><span>H1 Core investment</span><span id="h1-value">50%</span></div>
+              <input id="h1-slider" type="range" min="20" max="75" value="50" />
+              <p class="metric-name">Optimization, automation and efficiency improvements.</p>
+            </div>
+            <div class="slider-card">
+              <div class="slider-top"><span>H2 Growth investment</span><span id="h2-value">35%</span></div>
+              <input id="h2-slider" type="range" min="15" max="60" value="35" />
+              <p class="metric-name">AI modules, new digital services and customer analytics.</p>
+            </div>
+            <div class="slider-card">
+              <div class="slider-top"><span>H3 Future investment</span><span id="h3-value">15%</span></div>
+              <input id="h3-slider" type="range" min="5" max="40" value="15" />
+              <p class="metric-name">Autonomous agents, new models and emerging technologies.</p>
+            </div>
+          </div>
+          <div class="scenario-result">
+            <div class="result-card">
+              <b>Live recommendation</b>
+              <p id="scenario-recommendation">Balanced portfolio: scale H1, selectively accelerate H2 and preserve H3 options.</p>
+            </div>
+            <div class="result-card"><b>Forecast value</b><span id="scenario-value">EUR 2.8M</span></div>
+            <div class="result-card"><b>Portfolio risk</b><span id="scenario-risk">Medium</span></div>
+            <div class="result-card"><b>Expected ROI</b><span id="scenario-roi">2.4x</span></div>
+          </div>
+        </section>
+
+        <div class="metric-grid">
+          <div class="card metric-card"><p class="metric-value" id="metric-pipeline-value">EUR 2.8M</p><p class="metric-name">Innovation pipeline value</p></div>
+          <div class="card metric-card"><p class="metric-value" id="metric-active">28</p><p class="metric-name">Active initiatives</p></div>
+          <div class="card metric-card"><p class="metric-value" id="metric-alignment">92%</p><p class="metric-name">Initiatives aligned with strategy</p></div>
+          <div class="card metric-card"><p class="metric-value" id="metric-success">58%</p><p class="metric-name">Experiment success rate</p></div>
+          <div class="card metric-card"><p class="metric-value">9 wks</p><p class="metric-name">Average time from idea to MVP</p></div>
+          <div class="card metric-card"><p class="metric-value" id="metric-roi">2.4x</p><p class="metric-name">Portfolio ROI</p></div>
+          <div class="card metric-card"><p class="metric-value" id="metric-budget">61%</p><p class="metric-name">Innovation budget used</p></div>
+          <div class="card metric-card"><p class="metric-value">1.8/mo</p><p class="metric-name">Validated learning cycles</p></div>
+        </div>
+
+        <div class="system-grid">
+          <section class="wide-panel">
+            <h2 class="section-title">Overall OKRs</h2>
+            <div class="okr-list">
+              <div class="okr"><b>Objective 1</b><p>Build a structured and measurable innovation system.</p></div>
+              <div class="okr"><b>Objective 2</b><p>Increase the success rate of validated innovation projects.</p></div>
+              <div class="okr"><b>Objective 3</b><p>Balance short-term improvements with long-term growth opportunities.</p></div>
+            </div>
+          </section>
+
+          <section class="wide-panel">
+            <h2 class="section-title">Portfolio Balance</h2>
+            <div class="portfolio">
+              <div class="donut" id="portfolio-donut" aria-label="Portfolio donut chart: H1 50%, H2 35%, H3 15%"></div>
+              <div class="bar-stack">
+                <div class="bar-row"><span>H1 Core</span><div class="progress"><i id="h1-bar" style="width: 50%"></i></div><span id="h1-bar-label">50%</span></div>
+                <div class="bar-row"><span>H2 Growth</span><div class="progress cyan"><i id="h2-bar" style="width: 35%"></i></div><span id="h2-bar-label">35%</span></div>
+                <div class="bar-row"><span>H3 Future</span><div class="progress violet"><i id="h3-bar" style="width: 15%"></i></div><span id="h3-bar-label">15%</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="wide-panel">
+            <h2 class="section-title">Time Horizon View</h2>
+            <div class="horizon-grid">
+              <div class="horizon active" data-horizon="h1">
+                <h3>H1 - Core</h3>
+                <p><b>Focus:</b> Optimization and efficiency.</p>
+                <p>Process automation, incremental improvements, operational efficiency tools.</p>
+                <div class="chipline"><span class="chip">ROI</span><span class="chip">Efficiency</span><span class="chip">Delivery KPIs</span></div>
+              </div>
+              <div class="horizon" data-horizon="h2">
+                <h3>H2 - Growth</h3>
+                <p><b>Focus:</b> Scaling new capabilities.</p>
+                <p>New digital services, AI module expansion, customer analytics platform.</p>
+                <div class="chipline"><span class="chip">Adoption</span><span class="chip">Capability</span><span class="chip">Revenue potential</span></div>
+              </div>
+              <div class="horizon" data-horizon="h3">
+                <h3>H3 - Future Bets</h3>
+                <p><b>Focus:</b> Exploration and strategic options.</p>
+                <p>Autonomous AI agents, new business models, emerging technologies.</p>
+                <div class="chipline"><span class="chip">Learning</span><span class="chip">Options</span><span class="chip">Experiments</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="wide-panel">
+            <h2 class="section-title">Value Forecast by Horizon</h2>
+            <div class="forecast-bars" aria-label="Forecasted value chart">
+              <div class="forecast"><span id="h1-forecast" style="height: 58%">EUR 0.9M</span><b>H1</b></div>
+              <div class="forecast"><span id="h2-forecast" style="height: 88%">EUR 1.4M</span><b>H2</b></div>
+              <div class="forecast"><span id="h3-forecast" style="height: 34%">EUR 0.5M</span><b>H3</b></div>
+            </div>
+          </section>
+
+          <section class="wide-panel">
+            <h2 class="section-title">Decision Dashboard</h2>
+            <table class="decision-table" aria-label="Risk investment strategic decision table">
+              <thead>
+                <tr>
+                  <th>Horizon</th>
+                  <th>Risk</th>
+                  <th>Investment</th>
+                  <th>Strategic alignment</th>
+                  <th>Recommended decision</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><b>H1 Core</b></td>
+                  <td><span class="risk-dot"></span>Low</td>
+                  <td>High discipline</td>
+                  <td>94%</td>
+                  <td><span class="badge green">Scale</span></td>
+                </tr>
+                <tr>
+                  <td><b>H2 Growth</b></td>
+                  <td><span class="risk-dot med"></span>Medium</td>
+                  <td>Selective increase</td>
+                  <td>89%</td>
+                  <td><span class="badge blue">Continue / Scale selectively</span></td>
+                </tr>
+                <tr>
+                  <td><b>H3 Future Bets</b></td>
+                  <td><span class="risk-dot high"></span>High</td>
+                  <td>Controlled experiments</td>
+                  <td>76%</td>
+                  <td><span class="badge amber">Continue experiments / Pivot</span></td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="decision-spotlight" aria-live="polite">
+              <b id="horizon-title">H1 Core selected</b>
+              <p id="horizon-text">Scale proven optimization initiatives because risk is low, strategic fit is high and the impact is close to current operations.</p>
+            </div>
+          </section>
+
+          <section class="wide-panel">
+            <h2 class="section-title">Strategic Goals & Key Takeaways</h2>
+            <div class="chipline" style="margin-top: 10px">
+              <span class="chip">AI decision support</span>
+              <span class="chip">Operational efficiency</span>
+              <span class="chip">Warehouse visibility</span>
+              <span class="chip">Scalable SaaS growth</span>
+            </div>
+            <div class="takeaways">
+              <div class="takeaway">The portfolio is balanced, but still concentrated in H1 efficiency innovation.</div>
+              <div class="takeaway">H2 initiatives show the highest scaling potential and justify selective investment.</div>
+              <div class="takeaway">H3 bets are riskier, but create future strategic options through controlled experiments.</div>
+              <div class="takeaway">Metrics are linked to decisions and evidence quality, avoiding vanity indicators.</div>
+            </div>
+          </section>
+        </div>
+
+        <div class="footer-strip">
+          <span><b>Strategic recommendation:</b> Scale H1, accelerate evidence-rich H2, keep H3 as learning options.</span>
+          <span>Decision rhythm: monthly pipeline review &middot; quarterly portfolio rebalance</span>
+        </div>
+      </section>
+    </article>
+  </main>
+
+  <script>
+    const landing = document.querySelector("#intro-landing");
+    const carScene = document.querySelector(".car-scene");
+    const carPieces = document.querySelectorAll(".car-piece");
+    const tabs = document.querySelectorAll(".tab");
+    const screens = document.querySelectorAll(".screen");
+    const printButton = document.querySelector("#print-dashboard");
+    const sliders = {
+      h1: document.querySelector("#h1-slider"),
+      h2: document.querySelector("#h2-slider"),
+      h3: document.querySelector("#h3-slider")
+    };
+
+    const scenarioPresets = {
+      balanced: { h1: 50, h2: 35, h3: 15 },
+      core: { h1: 70, h2: 25, h3: 5 },
+      growth: { h1: 35, h2: 50, h3: 15 },
+      future: { h1: 30, h2: 30, h3: 40 }
+    };
+
+    function updateLandingTimeline() {
+      if (!landing) return;
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (reducedMotion) {
+        landing.style.setProperty("--explode", "1");
+        landing.style.setProperty("--hero-opacity", "1");
+        landing.style.setProperty("--final-opacity", "1");
+        return;
+      }
+
+      const rect = landing.getBoundingClientRect();
+      const scrollable = Math.max(1, landing.offsetHeight - window.innerHeight);
+      const progress = Math.min(1, Math.max(0, -rect.top / scrollable));
+      const heroOpacity = Math.min(1, Math.max(0, 1 - progress * 2.35));
+      const finalOpacity = Math.min(1, Math.max(0, (progress - 0.78) / 0.18));
+
+      landing.style.setProperty("--explode", progress.toFixed(3));
+      landing.style.setProperty("--hero-opacity", heroOpacity.toFixed(3));
+      landing.style.setProperty("--final-opacity", finalOpacity.toFixed(3));
+
+      if (carScene) {
+        carScene.style.transform = `translateY(${-18 * progress}px) scale(${1 + progress * 0.05})`;
+      }
+
+      carPieces.forEach((piece) => {
+        const tx = parseFloat(piece.style.getPropertyValue("--tx")) || 0;
+        const ty = parseFloat(piece.style.getPropertyValue("--ty")) || 0;
+        const tz = parseFloat(piece.style.getPropertyValue("--tz")) || 0;
+        const rot = parseFloat(piece.style.getPropertyValue("--rot")) || 0;
+        const scale = parseFloat(piece.style.getPropertyValue("--scale")) || 0;
+        piece.style.transform = `translate3d(${tx * progress}px, ${ty * progress}px, ${tz * progress}px) rotate(${rot * progress}deg) scale(${1 + scale * progress})`;
+      });
+    }
+
+    let landingFrame = 0;
+    function requestLandingUpdate() {
+      window.cancelAnimationFrame(landingFrame);
+      landingFrame = window.requestAnimationFrame(updateLandingTimeline);
+    }
+
+    updateLandingTimeline();
+    window.addEventListener("scroll", requestLandingUpdate, { passive: true });
+    window.addEventListener("resize", requestLandingUpdate);
+
+    const stageDetails = {
+      alignment: {
+        title: "Strategic Alignment",
+        text: "Management should keep funding initiatives that reinforce AI decision support, warehouse visibility and operational efficiency.",
+        score: "8.6",
+        risk: "Low",
+        action: "Continue"
+      },
+      discovery: {
+        title: "Opportunity Discovery",
+        text: "Customer interviews and market signals show strong demand for faster exception detection and planning support.",
+        score: "8.1",
+        risk: "Medium",
+        action: "Prioritize"
+      },
+      ideation: {
+        title: "Ideation",
+        text: "The idea funnel is healthy; the next decision is to concentrate teams on concepts with evidence and strategic fit.",
+        score: "7.4",
+        risk: "Low",
+        action: "Select"
+      },
+      validation: {
+        title: "Concept Validation",
+        text: "This is the bottleneck. Weak evidence should trigger quick pivots before MVP investment grows.",
+        score: "6.4",
+        risk: "High",
+        action: "Pivot"
+      },
+      mvp: {
+        title: "Development / MVP",
+        text: "Execution is strong, but MVP funding should remain conditional on validation quality and budget discipline.",
+        score: "8.1",
+        risk: "Medium",
+        action: "Continue"
+      },
+      scaling: {
+        title: "Launch & Scaling",
+        text: "Adoption and ROI signals support scaling the best AI exception management and warehouse flow solutions.",
+        score: "8.8",
+        risk: "Medium",
+        action: "Scale"
+      },
+      learning: {
+        title: "Learning & Portfolio Review",
+        text: "Quarterly review discipline improves resource allocation by stopping weak projects and funding stronger bets.",
+        score: "7.8",
+        risk: "Low",
+        action: "Review"
+      }
+    };
+
+    const horizonDetails = {
+      h1: {
+        title: "H1 Core selected",
+        text: "Scale proven optimization initiatives because risk is low, strategic fit is high and the impact is close to current operations."
+      },
+      h2: {
+        title: "H2 Growth selected",
+        text: "Continue and scale selectively: these initiatives have the highest value forecast, but should receive funding only when adoption evidence is clear."
+      },
+      h3: {
+        title: "H3 Future Bets selected",
+        text: "Keep experiments small and learning-focused. Pivot if evidence is weak, but preserve options around autonomous AI and emerging business models."
+      }
+    };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const target = tab.dataset.target;
+
+        tabs.forEach((item) => item.classList.toggle("active", item === tab));
+        screens.forEach((screen) => screen.classList.toggle("active", screen.id === target));
+      });
+    });
+
+    function selectStage(stage) {
+      const detail = stageDetails[stage];
+      if (!detail) return;
+
+      document.querySelector("#stage-detail-title").textContent = detail.title;
+      document.querySelector("#stage-detail-text").textContent = detail.text;
+      document.querySelector("#stage-detail-score").textContent = detail.score;
+      document.querySelector("#stage-detail-risk").textContent = detail.risk;
+      document.querySelector("#stage-detail-action").textContent = detail.action;
+
+      document.querySelectorAll("[data-stage]").forEach((item) => {
+        const isActive = item.dataset.stage === stage;
+        item.classList.toggle("active", isActive);
+        item.classList.toggle("dimmed", item.classList.contains("stage-card") && !isActive);
+      });
+    }
+
+    function filterStages(status) {
+      document.querySelectorAll("[data-status-filter]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.statusFilter === status);
+      });
+
+      document.querySelectorAll(".stage-card, .pipe-step").forEach((item) => {
+        const visible = status === "all" || item.dataset.status === status;
+        item.classList.toggle("hidden", !visible);
+      });
+
+      const firstVisible = document.querySelector(`.stage-card:not(.hidden)`);
+      if (firstVisible) selectStage(firstVisible.dataset.stage);
+    }
+
+    function euro(value) {
+      return `EUR ${value.toFixed(1)}M`;
+    }
+
+    function getPortfolioShares() {
+      const raw = {
+        h1: Number(sliders.h1.value),
+        h2: Number(sliders.h2.value),
+        h3: Number(sliders.h3.value)
+      };
+      const total = raw.h1 + raw.h2 + raw.h3;
+      return {
+        h1: Math.round((raw.h1 / total) * 100),
+        h2: Math.round((raw.h2 / total) * 100),
+        h3: Math.max(0, 100 - Math.round((raw.h1 / total) * 100) - Math.round((raw.h2 / total) * 100))
+      };
+    }
+
+    function updateScenario(activeScenario) {
+      const share = getPortfolioShares();
+      const h1Value = share.h1 * 0.018;
+      const h2Value = share.h2 * 0.040;
+      const h3Value = share.h3 * 0.032;
+      const totalValue = h1Value + h2Value + h3Value;
+      const riskScore = Math.round(share.h1 * 0.25 + share.h2 * 0.55 + share.h3 * 0.85);
+      const roi = (share.h1 * 2.2 + share.h2 * 3.0 + share.h3 * 1.6) / 100;
+      const success = Math.round(52 + share.h1 * 0.12 + share.h2 * 0.18 - share.h3 * 0.08);
+      const alignment = Math.round(94 + share.h1 * 0.02 + share.h2 * 0.01 - share.h3 * 0.18);
+      const budget = Math.round(48 + share.h1 * 0.18 + share.h2 * 0.16 + share.h3 * 0.12);
+      const active = Math.round(20 + share.h2 * 0.12 + share.h3 * 0.20);
+      const maxForecast = Math.max(h1Value, h2Value, h3Value);
+      const riskLabel = riskScore < 40 ? "Low" : riskScore < 62 ? "Medium" : "High";
+
+      document.querySelector("#h1-value").textContent = `${share.h1}%`;
+      document.querySelector("#h2-value").textContent = `${share.h2}%`;
+      document.querySelector("#h3-value").textContent = `${share.h3}%`;
+
+      document.querySelector("#h1-bar").style.width = `${share.h1}%`;
+      document.querySelector("#h2-bar").style.width = `${share.h2}%`;
+      document.querySelector("#h3-bar").style.width = `${share.h3}%`;
+      document.querySelector("#h1-bar-label").textContent = `${share.h1}%`;
+      document.querySelector("#h2-bar-label").textContent = `${share.h2}%`;
+      document.querySelector("#h3-bar-label").textContent = `${share.h3}%`;
+
+      document.querySelector("#portfolio-donut").style.background =
+        `conic-gradient(var(--blue) 0 ${share.h1}%, var(--cyan) ${share.h1}% ${share.h1 + share.h2}%, var(--violet) ${share.h1 + share.h2}% 100%)`;
+
+      document.querySelector("#h1-forecast").style.height = `${Math.max(24, (h1Value / maxForecast) * 92)}%`;
+      document.querySelector("#h2-forecast").style.height = `${Math.max(24, (h2Value / maxForecast) * 92)}%`;
+      document.querySelector("#h3-forecast").style.height = `${Math.max(24, (h3Value / maxForecast) * 92)}%`;
+      document.querySelector("#h1-forecast").textContent = euro(h1Value);
+      document.querySelector("#h2-forecast").textContent = euro(h2Value);
+      document.querySelector("#h3-forecast").textContent = euro(h3Value);
+
+      document.querySelector("#scenario-value").textContent = euro(totalValue);
+      document.querySelector("#scenario-risk").textContent = riskLabel;
+      document.querySelector("#scenario-roi").textContent = `${roi.toFixed(1)}x`;
+      document.querySelector("#metric-pipeline-value").textContent = euro(totalValue);
+      document.querySelector("#metric-active").textContent = active;
+      document.querySelector("#metric-alignment").textContent = `${alignment}%`;
+      document.querySelector("#metric-success").textContent = `${success}%`;
+      document.querySelector("#metric-roi").textContent = `${roi.toFixed(1)}x`;
+      document.querySelector("#metric-budget").textContent = `${budget}%`;
+
+      let recommendation = "Balanced portfolio: scale H1, selectively accelerate H2 and preserve H3 options.";
+      if (share.h1 >= 58) recommendation = "Core efficiency scenario: strong near-term impact, but monitor whether long-term growth options are being underfunded.";
+      if (share.h2 >= 44) recommendation = "Growth push scenario: highest scaling potential; release funds in gates tied to adoption and revenue evidence.";
+      if (share.h3 >= 28) recommendation = "Future bets scenario: strategic optionality rises, but experiments must stay small and evidence-led.";
+      if (riskScore > 65) recommendation = "High-risk scenario: reduce exposure or define stricter kill criteria before committing more investment.";
+      document.querySelector("#scenario-recommendation").textContent = recommendation;
+
+      if (activeScenario) {
+        document.querySelectorAll("[data-scenario]").forEach((button) => {
+          button.classList.toggle("active", button.dataset.scenario === activeScenario);
+        });
+      } else {
+        document.querySelectorAll("[data-scenario]").forEach((button) => button.classList.remove("active"));
+      }
+    }
+
+    document.querySelectorAll("[data-stage]").forEach((item) => {
+      item.addEventListener("click", () => selectStage(item.dataset.stage));
+    });
+
+    document.querySelectorAll("[data-status-filter]").forEach((button) => {
+      button.addEventListener("click", () => filterStages(button.dataset.statusFilter));
+    });
+
+    document.querySelectorAll("[data-horizon]").forEach((item) => {
+      item.addEventListener("click", () => {
+        const detail = horizonDetails[item.dataset.horizon];
+        if (!detail) return;
+
+        document.querySelectorAll("[data-horizon]").forEach((horizon) => {
+          horizon.classList.toggle("active", horizon === item);
+        });
+
+        document.querySelector("#horizon-title").textContent = detail.title;
+        document.querySelector("#horizon-text").textContent = detail.text;
+      });
+    });
+
+    Object.values(sliders).forEach((slider) => {
+      slider.addEventListener("input", () => updateScenario());
+    });
+
+    document.querySelectorAll("[data-scenario]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const preset = scenarioPresets[button.dataset.scenario];
+        sliders.h1.value = preset.h1;
+        sliders.h2.value = preset.h2;
+        sliders.h3.value = preset.h3;
+        updateScenario(button.dataset.scenario);
+      });
+    });
+
+    updateScenario("balanced");
+    printButton.addEventListener("click", () => window.print());
+  </script>
+</body>
+</html>

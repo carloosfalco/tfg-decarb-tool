@@ -103,6 +103,8 @@ NUMERIC_COLUMNS = [
 # NOTE: These values are aligned to official sources where available.
 # Update with official factors from MITECO/CNMC/REE and F-gas regulation when new years are published.
 
+DEFAULT_INVENTORY_YEAR = 2025
+
 CNMC_ELECTRICITY_FACTORS = {
     # Supplier Remaining Mix (tCO2/MWh) — CNMC published electricity mix (gCO2/kWh converted to tCO2/MWh)
     "supplier_remaining_mix_t_per_mwh": {
@@ -111,14 +113,17 @@ CNMC_ELECTRICITY_FACTORS = {
         2022: 0.273,
         2023: 0.260,
         2024: 0.283,
+        2025: 0.258,
     },
     # Generic supplier factor when no specific supplier data available
     "generic_supplier_t_per_mwh": {
         2024: 0.283,
+        2025: 0.258,
     },
     # GdO cogeneration factor (kg CO2e/kWh -> tCO2/MWh) from MITECO calculator instructions
     "gdo_cogen_t_per_mwh": {
         2024: 0.302,
+        2025: 0.302,
     },
 }
 
@@ -130,6 +135,7 @@ REE_LOCATION_BASED_FACTORS = {
         2022: 0.273,
         2023: 0.260,
         2024: 0.283,
+        2025: 0.258,
     },
     "No peninsular": {
         # Placeholder until official factors are available
@@ -190,7 +196,7 @@ SPAIN_PROVINCES = [
 STATIONARY_FUELS_DB_PATH = os.path.join(os.path.dirname(__file__), "data", "stationary_fuel_factors_es.csv")
 MOBILE_FUELS_DB_PATH = os.path.join(os.path.dirname(__file__), "data", "mobile_fuel_factors_es.csv")
 REFRIGERANTS_DB_PATH = os.path.join(os.path.dirname(__file__), "data", "refrigerants_pca_es.csv")
-COMMON_STATIONARY_FUEL_LABELS = {"Gasóleo C", "Gasóleo B", "Gas natural", "Fuelóleo", "LPG"}
+COMMON_STATIONARY_FUEL_LABELS = {"Gasóleo C", "Gasóleo B", "Gas natural", "LPG"}
 COMMON_MOBILE_FUEL_LABELS = {"B7", "E10"}
 STATIONARY_FUEL_MWH_PER_UNIT = {
     "Gasóleo C": 0.0099,
@@ -235,9 +241,17 @@ MOBILE_FUEL_MWH_PER_UNIT = {
 }
 
 
+def _year_factor_map(row: pd.Series) -> Dict[int, float]:
+    factors: Dict[int, float] = {}
+    for col in row.index:
+        if str(col).isdigit() and not pd.isna(row[col]):
+            factors[int(col)] = float(row[col])
+    return factors
+
+
 def load_stationary_fuels_catalog() -> List[Dict]:
     df = pd.read_csv(STATIONARY_FUELS_DB_PATH)
-    required_cols = {"Combustible", "Unidad", "2023", "2024"}
+    required_cols = {"Combustible", "Unidad"}
     if not required_cols.issubset(df.columns):
         raise ValueError("El catálogo de combustibles estacionarios no tiene el formato esperado.")
     fuels = []
@@ -258,10 +272,7 @@ def load_stationary_fuels_catalog() -> List[Dict]:
                 "unit": str(row["Unidad"]).strip(),
                 "common": label in COMMON_STATIONARY_FUEL_LABELS,
                 "mwh_per_unit": STATIONARY_FUEL_MWH_PER_UNIT.get(label),
-                "factors_kg_per_unit": {
-                    2023: float(row["2023"]),
-                    2024: float(row["2024"]),
-                },
+                "factors_kg_per_unit": _year_factor_map(row),
             }
         )
     return fuels
@@ -274,7 +285,7 @@ COMMON_STATIONARY_FUELS = [f for f in STATIONARY_FUELS_CATALOG if f.get("common"
 
 def load_mobile_fuels_catalog() -> List[Dict]:
     df = pd.read_csv(MOBILE_FUELS_DB_PATH)
-    required_cols = {"Combustible", "Tipo", "Unidad", "2023", "2024"}
+    required_cols = {"Combustible", "Tipo", "Unidad"}
     if not required_cols.issubset(df.columns):
         raise ValueError("El catálogo de combustibles móviles no tiene el formato esperado.")
     fuels = []
@@ -301,7 +312,7 @@ def load_mobile_fuels_catalog() -> List[Dict]:
                 "unit": str(row["Unidad"]).strip(),
                 "common": fuel_label in COMMON_MOBILE_FUEL_LABELS,
                 "mwh_per_unit": MOBILE_FUEL_MWH_PER_UNIT.get(fuel_label),
-                "factors_kg_per_unit": {2023: float(row["2023"]), 2024: float(row["2024"])},
+                "factors_kg_per_unit": _year_factor_map(row),
             }
         )
     return fuels
@@ -1010,7 +1021,7 @@ def convert_fuel_to_emissions(fuel_key: str, quantity: float, unit: str, by_kwh:
 
 
 def calculate_scope1_stationary(company: Dict) -> Dict[str, float | Dict[str, float] | str]:
-    year = int(company.get("inventory_year") or 2024)
+    year = int(company.get("inventory_year") or DEFAULT_INVENTORY_YEAR)
     breakdown = {}
     total = 0.0
     years_used = set()
@@ -1046,7 +1057,7 @@ def estimate_stationary_fuel_mwh(company: Dict) -> float:
 
 
 def calculate_scope1_mobile(company: Dict) -> Dict[str, float | List[dict]]:
-    year = int(company.get("inventory_year") or 2024)
+    year = int(company.get("inventory_year") or DEFAULT_INVENTORY_YEAR)
     rows = get_mobile_fuel_entries(company)
     total = 0.0
     details = []
@@ -1239,7 +1250,7 @@ def build_ai_company_context(company_inputs: Dict) -> Dict[str, Any]:
         "province": company_inputs.get("province") or "",
         "postal_code": company_inputs.get("postal_code") or "",
         "country_region": company_inputs.get("country_region") or "",
-        "inventory_year": company_inputs.get("inventory_year") or 2024,
+        "inventory_year": company_inputs.get("inventory_year") or DEFAULT_INVENTORY_YEAR,
         "electricity_method": company_inputs.get("electricity_method") or "location",
         "annual_electricity_mwh": annual_electricity_mwh,
         "annual_purchased_heat_mwh": company_inputs.get("annual_purchased_heat_mwh"),
@@ -2795,7 +2806,7 @@ def render_tool_page() -> None:
     
         key_status = "SÍ" if ai_api_key else "NO"
         st.caption(f"Clave Gemini cargada: {key_status}")
-        ai_model = "gemini-2.5-flash"
+        ai_model = "gemini-3.1-flash-lite-preview"
     
     
     # -----------------------------
@@ -2827,7 +2838,7 @@ def render_tool_page() -> None:
                 with row_1b:
                     company_inputs["cnae_sector"] = st.text_input("CNAE / Sector", value="")
                 with row_1c:
-                    company_inputs["inventory_year"] = st.number_input("Año de inventario (cálculo)", min_value=2000, max_value=2100, value=2024, step=1)
+                    company_inputs["inventory_year"] = st.number_input("Año de inventario (cálculo)", min_value=2000, max_value=2100, value=DEFAULT_INVENTORY_YEAR, step=1)
                     st.session_state["inventory_year"] = int(company_inputs["inventory_year"])
 
                 company_inputs["country"] = "España"
@@ -2901,7 +2912,7 @@ def render_tool_page() -> None:
                                 step=100.0,
                                 key=f"stationary_common_{fuel['key']}",
                             )
-                            factor_kg, factor_year = get_stationary_fuel_factor(fuel["key"], int(company_inputs.get("inventory_year") or 2024))
+                            factor_kg, factor_year = get_stationary_fuel_factor(fuel["key"], int(company_inputs.get("inventory_year") or DEFAULT_INVENTORY_YEAR))
                             st.caption(f"Factor {factor_year}: {factor_kg:.3f} kgCO2/{fuel['unit']}")
                             if qty > 0:
                                 stationary_entries.append({"fuel_key": fuel["key"], "quantity": qty})
@@ -2922,7 +2933,7 @@ def render_tool_page() -> None:
                             step=100.0,
                             key=f"stationary_other_{fuel_key}",
                         )
-                        factor_kg, factor_year = get_stationary_fuel_factor(fuel_key, int(company_inputs.get("inventory_year") or 2024))
+                        factor_kg, factor_year = get_stationary_fuel_factor(fuel_key, int(company_inputs.get("inventory_year") or DEFAULT_INVENTORY_YEAR))
                         st.caption(f"Factor {factor_year}: {factor_kg:.3f} kgCO2/{fuel['unit']}")
                         if qty > 0:
                             stationary_entries.append({"fuel_key": fuel_key, "quantity": qty})
@@ -2958,7 +2969,7 @@ def render_tool_page() -> None:
                                 step=100.0,
                                 key=f"mobile_common_qty_{vehicle_key}",
                             )
-                            factor_kg, factor_year = get_mobile_fuel_factor(vehicle_key, int(company_inputs.get("inventory_year") or 2024))
+                            factor_kg, factor_year = get_mobile_fuel_factor(vehicle_key, int(company_inputs.get("inventory_year") or DEFAULT_INVENTORY_YEAR))
                             st.caption(f"Factor {factor_year}: {factor_kg:.3f} kgCO2/{selected['unit']}")
                             if qty > 0:
                                 mobile_entries.append({"fuel_key": vehicle_key, "quantity": qty})
@@ -2979,7 +2990,7 @@ def render_tool_page() -> None:
                             step=100.0,
                             key=f"mobile_other_qty_{fuel_key}",
                         )
-                        factor_kg, factor_year = get_mobile_fuel_factor(fuel_key, int(company_inputs.get("inventory_year") or 2024))
+                        factor_kg, factor_year = get_mobile_fuel_factor(fuel_key, int(company_inputs.get("inventory_year") or DEFAULT_INVENTORY_YEAR))
                         st.caption(f"Factor {factor_year}: {factor_kg:.3f} kgCO2/{fuel['unit']}")
                         if qty > 0:
                             mobile_entries.append({"fuel_key": fuel_key, "quantity": qty})

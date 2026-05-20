@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Short Video Interface Mockup</title>
+  <style>
+    :root {
+      --white: #ffffff;
+      --muted: rgba(255, 255, 255, 0.72);
+      --dark: #050505;
+      --pink: #ff2d55;
+      --cyan: #18d8ff;
+      --glass: rgba(0, 0, 0, 0.36);
+      --line: rgba(255, 255, 255, 0.18);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(24, 216, 255, 0.16), transparent 28%),
+        radial-gradient(circle at 80% 90%, rgba(255, 45, 85, 0.16), transparent 30%),
+        #111827;
+      color: var(--white);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .phone {
+      width: min(430px, 100vw);
+      height: min(932px, 100vh);
+      position: relative;
+      overflow: hidden;
+      background: var(--dark);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+    }
+
+    .scene {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(0, 0, 0, 0.3), transparent 24%, rgba(0, 0, 0, 0.86) 92%),
+        linear-gradient(130deg, #383838, #141414 58%, #050505);
+    }
+
+    .scene::before {
+      content: "";
+      position: absolute;
+      width: 760px;
+      height: 520px;
+      left: -130px;
+      top: 250px;
+      transform: rotate(8deg);
+      border-radius: 18px;
+      background:
+        linear-gradient(115deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0)),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 78px),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.1) 0 1px, transparent 1px 62px),
+        #161616;
+      border: 12px solid #030303;
+      box-shadow: 0 38px 90px rgba(0, 0, 0, 0.7);
+    }
+
+    .scene::after {
+      content: "";
+      position: absolute;
+      width: 900px;
+      height: 420px;
+      left: -230px;
+      top: 380px;
+      background:
+        radial-gradient(circle at 30% 45%, rgba(24, 216, 255, 0.44), transparent 4%),
+        radial-gradient(circle at 58% 35%, rgba(255, 255, 255, 0.34), transparent 4%),
+        radial-gradient(circle at 72% 48%, rgba(255, 255, 255, 0.28), transparent 4%),
+        repeating-linear-gradient(85deg, rgba(24, 216, 255, 0.22) 0 1px, transparent 1px 18px);
+      filter: blur(0.2px);
+      opacity: 0.55;
+      transform: rotate(8deg);
+      animation: drift 9s ease-in-out infinite alternate;
+    }
+
+    @keyframes drift {
+      from {
+        transform: translateX(-16px) rotate(8deg) scale(1);
+      }
+      to {
+        transform: translateX(26px) rotate(8deg) scale(1.03);
+      }
+    }
+
+    .status-bar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 5;
+      height: 48px;
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      padding: 0 30px 8px;
+      font-weight: 800;
+      font-size: 18px;
+      background: #000;
+    }
+
+    .system-icons {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .signal {
+      display: flex;
+      align-items: end;
+      gap: 3px;
+      height: 17px;
+    }
+
+    .signal i {
+      width: 4px;
+      border-radius: 999px;
+      background: var(--white);
+    }
+
+    .signal i:nth-child(1) { height: 7px; opacity: 0.45; }
+    .signal i:nth-child(2) { height: 10px; opacity: 0.65; }
+    .signal i:nth-child(3) { height: 13px; opacity: 0.82; }
+    .signal i:nth-child(4) { height: 17px; }
+
+    .wifi {
+      width: 26px;
+      height: 18px;
+      border: 4px solid var(--white);
+      border-bottom: 0;
+      border-radius: 28px 28px 0 0;
+      position: relative;
+    }
+
+    .wifi::after {
+      content: "";
+      position: absolute;
+      width: 7px;
+      height: 7px;
+      left: 6px;
+      top: 8px;
+      border-radius: 50%;
+      background: var(--white);
+    }
+
+    .battery {
+      min-width: 37px;
+      padding: 1px 7px;
+      border-radius: 7px;
+      background: rgba(255, 255, 255, 0.88);
+      color: #111;
+      font-size: 14px;
+      font-weight: 900;
+    }
+
+    .top-nav {
+      position: absolute;
+      top: 48px;
+      left: 0;
+      right: 0;
+      z-index: 5;
+      display: grid;
+      grid-template-columns: 58px 1fr 48px;
+      gap: 8px;
+      align-items: center;
+      padding: 12px 18px;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0.36), transparent);
+    }
+
+    .live {
+      width: 38px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border: 2px solid var(--white);
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 900;
+      position: relative;
+    }
+
+    .live::before,
+    .live::after {
+      content: "";
+      position: absolute;
+      width: 10px;
+      height: 2px;
+      top: -5px;
+      background: var(--white);
+    }
+
+    .live::before {
+      left: 6px;
+      transform: rotate(-28deg);
+    }
+
+    .live::after {
+      right: 6px;
+      transform: rotate(28deg);
+    }
+
+    .feed-tabs {
+      display: flex;
+      justify-content: center;
+      gap: 18px;
+      font-size: 16px;
+      font-weight: 900;
+      color: rgba(255, 255, 255, 0.72);
+    }
+
+    .feed-tab {
+      position: relative;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      padding: 4px 0 10px;
+      font-weight: 900;
+    }
+
+    .feed-tab.active {
+      color: var(--white);
+    }
+
+    .feed-tab.active::after {
+      content: "";
+      position: absolute;
+      left: 20%;
+      right: 20%;
+      bottom: 0;
+      height: 3px;
+      border-radius: 999px;
+      background: var(--white);
+    }
+
+    .dot {
+      position: absolute;
+      width: 9px;
+      height: 9px;
+      top: 3px;
+      right: -10px;
+      border-radius: 50%;
+      background: var(--pink);
+    }
+
+    .search {
+      justify-self: end;
+      width: 34px;
+      height: 34px;
+      border: 4px solid var(--white);
+      border-radius: 50%;
+      background: transparent;
+      position: relative;
+    }
+
+    .search::after {
+      content: "";
+      position: absolute;
+      width: 15px;
+      height: 4px;
+      right: -12px;
+      bottom: -7px;
+      border-radius: 999px;
+      background: var(--white);
+      transform: rotate(45deg);
+    }
+
+    .creator-badge {
+      position: absolute;
+      top: 190px;
+      left: 50%;
+      z-index: 2;
+      width: 88px;
+      height: 88px;
+      transform: translateX(-10%);
+      opacity: 0.92;
+      animation: pulse 4s ease-in-out infinite;
+    }
+
+    .creator-badge span {
+      position: absolute;
+      left: 42px;
+      top: 0;
+      width: 8px;
+      height: 88px;
+      border-radius: 999px;
+      background: #ff7a59;
+      transform-origin: 50% 50%;
+    }
+
+    .creator-badge span:nth-child(2) { transform: rotate(22.5deg); }
+    .creator-badge span:nth-child(3) { transform: rotate(45deg); }
+    .creator-badge span:nth-child(4) { transform: rotate(67.5deg); }
+    .creator-badge span:nth-child(5) { transform: rotate(90deg); }
+    .creator-badge span:nth-child(6) { transform: rotate(112.5deg); }
+    .creator-badge span:nth-child(7) { transform: rotate(135deg); }
+    .creator-badge span:nth-child(8) { transform: rotate(157.5deg); }
+
+    @keyframes pulse {
+      50% {
+        transform: translateX(-10%) scale(1.06) rotate(8deg);
+      }
+    }
+
+    .headline {
+      position: absolute;
+      z-index: 3;
+      top: 230px;
+      left: 28px;
+      right: 20px;
+      font-size: 26px;
+      line-height: 1.08;
+      font-weight: 800;
+      transform: rotate(5deg);
+      text-shadow: 0 3px 18px rgba(0, 0, 0, 0.7);
+    }
+
+    .content {
+      position: absolute;
+      z-index: 3;
+      left: 18px;
+      right: 82px;
+      bottom: 116px;
+      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.88);
+    }
+
+    .caption-pill {
+      display: inline-block;
+      max-width: 100%;
+      padding: 5px 9px;
+      margin-bottom: 10px;
+      border-radius: 6px;
+      background: var(--glass);
+      font-size: 19px;
+      line-height: 1.2;
+    }
+
+    .username {
+      margin: 0 0 12px;
+      font-size: 19px;
+      font-weight: 900;
+    }
+
+    .steps {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font-size: 18px;
+      line-height: 1.18;
+    }
+
+    .steps li {
+      margin-bottom: 5px;
+    }
+
+    .save {
+      margin-top: 18px;
+      font-size: 18px;
+    }
+
+    .original {
+      margin-top: 70px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .rail {
+      position: absolute;
+      z-index: 4;
+      right: 15px;
+      bottom: 126px;
+      display: grid;
+      gap: 18px;
+      justify-items: center;
+      text-align: center;
+      font-weight: 800;
+      text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+    }
+
+    .avatar {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.75);
+      background:
+        radial-gradient(circle at 50% 45%, #e11d48 0 22%, #111 23% 48%, #e11d48 49% 54%, #111 55%);
+      position: relative;
+    }
+
+    .follow {
+      position: absolute;
+      left: 50%;
+      bottom: -12px;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--pink);
+      color: var(--white);
+      transform: translateX(-50%);
+      cursor: pointer;
+      font-size: 24px;
+      line-height: 24px;
+      font-weight: 900;
+    }
+
+    .action {
+      display: grid;
+      gap: 4px;
+      justify-items: center;
+      border: 0;
+      background: transparent;
+      color: var(--white);
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .icon {
+      width: 46px;
+      height: 46px;
+      display: grid;
+      place-items: center;
+      font-size: 40px;
+      line-height: 1;
+    }
+
+    .heart {
+      color: var(--pink);
+      transition: transform 160ms ease;
+    }
+
+    .action.liked .heart {
+      transform: scale(1.16);
+      filter: drop-shadow(0 0 12px rgba(255, 45, 85, 0.85));
+    }
+
+    .comment-icon {
+      width: 42px;
+      height: 38px;
+      border-radius: 50%;
+      background: var(--white);
+      position: relative;
+    }
+
+    .comment-icon::after {
+      content: "";
+      position: absolute;
+      right: 5px;
+      bottom: -6px;
+      border-width: 10px 0 0 13px;
+      border-style: solid;
+      border-color: transparent transparent transparent var(--white);
+    }
+
+    .bookmark-icon {
+      width: 32px;
+      height: 44px;
+      background: var(--white);
+      clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+    }
+
+    .share-icon {
+      width: 48px;
+      height: 38px;
+      position: relative;
+    }
+
+    .share-icon::before {
+      content: "";
+      position: absolute;
+      inset: 7px 6px 0 0;
+      background: var(--white);
+      clip-path: polygon(0 48%, 58% 48%, 58% 18%, 100% 58%, 58% 100%, 58% 70%, 0 70%);
+    }
+
+    .disc {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle, #26113a 0 18%, #7c3aed 19% 38%, #111 39% 100%);
+      animation: spin 6s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .bottom-nav {
+      position: absolute;
+      z-index: 6;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      align-items: center;
+      padding: 8px 18px 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+      background: #000;
+    }
+
+    .nav-item {
+      display: grid;
+      justify-items: center;
+      gap: 3px;
+      color: rgba(255, 255, 255, 0.72);
+      font-size: 12px;
+      font-weight: 800;
+      position: relative;
+    }
+
+    .nav-item.active {
+      color: var(--white);
+    }
+
+    .nav-icon {
+      font-size: 25px;
+      line-height: 1;
+    }
+
+    .create {
+      width: 58px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background:
+        linear-gradient(90deg, var(--cyan), transparent 22% 78%, var(--pink)),
+        var(--white);
+      color: #111;
+      font-size: 29px;
+      font-weight: 900;
+    }
+
+    .badge {
+      position: absolute;
+      top: -5px;
+      right: 14px;
+      min-width: 22px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: var(--pink);
+      color: var(--white);
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 94px;
+      z-index: 8;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.76);
+      color: var(--white);
+      font-size: 14px;
+      opacity: 0;
+      transform: translate(-50%, 12px);
+      transition: opacity 180ms ease, transform 180ms ease;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    .comments {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 9;
+      max-height: 56%;
+      padding: 14px 18px 22px;
+      border-radius: 18px 18px 0 0;
+      background: var(--white);
+      color: #111827;
+      transform: translateY(105%);
+      transition: transform 220ms ease;
+    }
+
+    .comments.open {
+      transform: translateY(0);
+    }
+
+    .comments h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      text-align: center;
+    }
+
+    .close {
+      position: absolute;
+      right: 14px;
+      top: 10px;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      font-size: 24px;
+    }
+
+    .comment {
+      padding: 10px 0;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .comment b {
+      display: block;
+      margin-bottom: 3px;
+    }
+
+    @media (max-width: 460px) {
+      .phone {
+        width: 100vw;
+        height: 100vh;
+      }
+
+      .feed-tabs {
+        gap: 13px;
+        font-size: 15px;
+      }
+
+      .headline {
+        font-size: 24px;
+      }
+
+      .steps {
+        font-size: 17px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="phone" aria-label="Short video mobile interface">
+    <div class="scene" aria-hidden="true"></div>
+
+    <header class="status-bar">
+      <span>1:22</span>
+      <div class="system-icons" aria-hidden="true">
+        <div class="signal"><i></i><i></i><i></i><i></i></div>
+        <div class="wifi"></div>
+        <div class="battery">25</div>
+      </div>
+    </header>
+
+    <nav class="top-nav" aria-label="Feed tabs">
+      <div class="live">LIVE</div>
+      <div class="feed-tabs">
+        <button class="feed-tab" type="button">Explorar</button>
+        <button class="feed-tab" type="button">Siguiendo</button>
+        <button class="feed-tab" type="button">Tienda</button>
+        <button class="feed-tab active" type="button">Para ti<span class="dot"></span></button>
+      </div>
+      <button class="search" type="button" aria-label="Buscar"></button>
+    </nav>
+
+    <div class="creator-badge" aria-hidden="true">
+      <span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span>
+    </div>
+
+    <h1 class="headline">Can you believe Claude did this?</h1>
+
+    <section class="content" aria-label="Video caption">
+      <div class="caption-pill">Me siento por horas</div>
+      <p class="username">weblove</p>
+      <ol class="steps">
+        <li>1. Pídele a Claude un plan de animación cinematográfica basado en desplazamiento</li>
+        <li>2. Genere indicaciones para profundidad, paralaje y movimiento de la cámara.</li>
+        <li>3. Instalar Three.js + GSAP + ScrollTrigger</li>
+        <li>4. Use el desplazamiento para controlar el zoom, la escala y las transiciones de escena</li>
+        <li>5. Agregue imágenes en capas para una ilusión de profundidad 3D</li>
+        <li>6. Aplique relajación suave, iluminación y sombras para mayor realismo.</li>
+        <li>7. Refina hasta que se sienta como una escena continua</li>
+      </ol>
+      <p class="save">Guarda esto 🚀</p>
+      <p class="original">Ver original</p>
+    </section>
+
+    <aside class="rail" aria-label="Video actions">
+      <div class="avatar"><button class="follow" id="follow" type="button" aria-label="Seguir">+</button></div>
+      <button class="action liked" id="like" type="button" aria-label="Me gusta">
+        <span class="icon heart">♥</span>
+        <span id="like-count">16,3 mil</span>
+      </button>
+      <button class="action" id="open-comments" type="button" aria-label="Comentarios">
+        <span class="comment-icon"></span>
+        <span>135</span>
+      </button>
+      <button class="action" id="bookmark" type="button" aria-label="Guardar">
+        <span class="bookmark-icon"></span>
+        <span id="bookmark-count">9336</span>
+      </button>
+      <button class="action" id="share" type="button" aria-label="Compartir">
+        <span class="share-icon"></span>
+        <span>2224</span>
+      </button>
+      <div class="disc" aria-hidden="true"></div>
+    </aside>
+
+    <nav class="bottom-nav" aria-label="Bottom navigation">
+      <div class="nav-item active"><span class="nav-icon">⌂</span><span>Inicio</span></div>
+      <div class="nav-item"><span class="nav-icon">◉</span><span>Amigos</span><span class="badge">99</span></div>
+      <div class="nav-item"><span class="create">+</span></div>
+      <div class="nav-item"><span class="nav-icon">▱</span><span>Mensajes</span><span class="badge">2</span></div>
+      <div class="nav-item"><span class="nav-icon">♙</span><span>Perfil</span></div>
+    </nav>
+
+    <div class="toast" id="toast" role="status" aria-live="polite">Acción realizada</div>
+
+    <section class="comments" id="comments" aria-label="Comentarios">
+      <button class="close" id="close-comments" type="button" aria-label="Cerrar">×</button>
+      <h2>135 comentarios</h2>
+      <div class="comment"><b>maria.design</b>Esto quedaría increíble como landing animada.</div>
+      <div class="comment"><b>operaciones.ai</b>La clave es que el scroll controle cámara, luz y capas.</div>
+      <div class="comment"><b>edem_student</b>Buen ejemplo de interfaz visual con storytelling.</div>
+    </section>
+  </main>
+
+  <script>
+    const likeButton = document.querySelector("#like");
+    const likeCount = document.querySelector("#like-count");
+    const bookmarkButton = document.querySelector("#bookmark");
+    const bookmarkCount = document.querySelector("#bookmark-count");
+    const followButton = document.querySelector("#follow");
+    const comments = document.querySelector("#comments");
+    const toast = document.querySelector("#toast");
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.setTimeout(() => toast.classList.remove("show"), 1400);
+    }
+
+    likeButton.addEventListener("click", () => {
+      const liked = likeButton.classList.toggle("liked");
+      likeCount.textContent = liked ? "16,3 mil" : "16,2 mil";
+      showToast(liked ? "Te gusta este video" : "Me gusta eliminado");
+    });
+
+    bookmarkButton.addEventListener("click", () => {
+      const saved = bookmarkButton.classList.toggle("liked");
+      bookmarkCount.textContent = saved ? "9337" : "9336";
+      showToast(saved ? "Guardado" : "Eliminado de guardados");
+    });
+
+    followButton.addEventListener("click", () => {
+      const following = followButton.textContent === "✓";
+      followButton.textContent = following ? "+" : "✓";
+      showToast(following ? "Dejaste de seguir" : "Ahora sigues a weblove");
+    });
+
+    document.querySelector("#share").addEventListener("click", () => {
+      showToast("Enlace copiado");
+    });
+
+    document.querySelector("#open-comments").addEventListener("click", () => {
+      comments.classList.add("open");
+    });
+
+    document.querySelector("#close-comments").addEventListener("click", () => {
+      comments.classList.remove("open");
+    });
+
+    document.querySelectorAll(".feed-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".feed-tab").forEach((item) => item.classList.toggle("active", item === tab));
+        showToast(`${tab.textContent.trim()} seleccionado`);
+      });
+    });
+  </script>
+</body>
+</html>

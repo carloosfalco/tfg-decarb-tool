@@ -1,0 +1,4 @@
+year,factor_name,factor_kg_kwh,unit,source
+2023,ree_generation_location_es,0.120,kgCO2e/kWh,Red Electrica informes sistema 2023: emisiones CO2e/generacion total; factor oficial redondeado 0.12 tCO2e/MWh
+2024,ree_generation_location_es,0.103,kgCO2e/kWh,Red Electrica informes sistema 2024: emisiones CO2e/generacion total; factor oficial redondeado 0.10 tCO2e/MWh
+2025,ree_generation_location_es,0.108,kgCO2e/kWh,Red Electrica informes sistema 2025 provisional: emisiones CO2e/generacion total; factor redondeado 0.11 tCO2e/MWh
