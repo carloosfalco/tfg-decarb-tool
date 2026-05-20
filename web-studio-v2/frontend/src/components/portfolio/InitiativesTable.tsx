@@ -132,7 +132,7 @@ export function InitiativesTable({
   return (
     <section className="stack">
       <div className="panel action-bar">
-        <span className="muted">Genera o actualiza la cartera; después puedes editar las hipótesis inline. Encaje estratégico (1-5) mide prioridad y ajuste con la empresa.</span>
+        <span className="muted">Genera o actualiza la cartera; después puedes ajustar las hipótesis directamente en la tabla. Encaje estratégico (1-5) mide prioridad y ajuste con la empresa.</span>
         <button className="button button--primary" type="button" onClick={onGenerateAi} disabled={isLoading}>
           {isLoading ? <span className="spinner" aria-hidden="true" /> : null}
           {isLoading ? "Generando..." : "Generar con IA"}
