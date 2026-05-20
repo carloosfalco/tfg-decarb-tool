@@ -190,7 +190,7 @@ export function Scope1Form({
         </div>
       </div>
 
-      <div className="row-header">
+      <div className="row-header scope-section-header scope-section-header--stationary">
         <div>
           <h3>Combustión fija</h3>
           <p className="muted">Los combustibles habituales se muestran directamente. El resto se añade desde la lista.</p>
@@ -270,7 +270,7 @@ export function Scope1Form({
           );
         })}
 
-      <div className="row-header">
+      <div className="row-header scope-section-header scope-section-header--mobile">
         <div>
           <h3>Combustión móvil (flota)</h3>
           <p className="muted">Cada vehículo se añade de forma independiente. Un consumo no afecta a otro.</p>
@@ -380,7 +380,7 @@ export function Scope1Form({
           );
         })}
 
-      <div className="row-header">
+      <div className="row-header scope-section-header scope-section-header--fugitive">
         <div>
           <h3>Emisiones fugitivas</h3>
           <p className="muted">Cada refrigerante se añade desde lista y mantiene su cantidad de forma independiente.</p>
