@@ -1603,6 +1603,7 @@ def generate_ai_initiatives(
     retry_note = ""
     json_shape_hint = '[{"id":"I1","initiative":"...","scope":"Alcance 1","emission_source":"...","initiative_family":"...","categoria":"quick_win","capex_eur":0,"annual_opex_saving_eur":0,"annual_co2_reduction_t":0,"co2_adjusted_t":0,"implementation_months":0,"strategic_score_1_5":3,"activity_unit":"..."}]'
     errors: List[str] = []
+    research_grounding_used = bool(research.get("grounding_used"))
     for attempt in range(1, 4):
         attempt_prompt = user_prompt + retry_note
         try:
@@ -1612,16 +1613,16 @@ def generate_ai_initiatives(
                 system_prompt,
                 attempt_prompt,
                 use_web_research=use_web_research,
-                require_web_research=True,
+                require_web_research=False,
                 json_shape_hint=json_shape_hint,
             )
             initiative_rows = _extract_initiative_list(result["data"])
             ai_df = finalize_initiatives(pd.DataFrame(initiative_rows), company, n=n)
-            if len(ai_df) == n and result.get("grounding_used"):
+            if len(ai_df) == n and (result.get("grounding_used") or research_grounding_used):
                 break
             errors.append(
                 f"Intento {attempt}: Gemini devolvió {len(ai_df)} iniciativas "
-                f"y grounding_used={bool(result.get('grounding_used'))}."
+                f"y grounding_used={bool(result.get('grounding_used') or research_grounding_used)}."
             )
             retry_reason = f"devolvió {len(ai_df)} iniciativas y se necesitan exactamente {n}"
         except Exception as exc:
@@ -1630,12 +1631,12 @@ def generate_ai_initiatives(
         retry_note = (
             "\n\nREINTENTO OBLIGATORIO:\n"
             f"El intento anterior no cumplió el contrato: {retry_reason}.\n"
-            "Debes realizar búsqueda web de nuevo y devolver SOLO una lista JSON válida, sin markdown, "
+            "Usa la investigación web previa y devuelve SOLO una lista JSON válida, sin markdown, "
             "sin explicación, sin objeto contenedor y sin claves tipo initiatives/data/items. "
             f"La respuesta debe empezar por '[' y terminar por ']'. Debe contener exactamente {n} iniciativas "
             "distintas y completas. No devuelvas menos filas ni texto fuera del JSON.\n"
         )
-    if result is None or len(ai_df) != n or not result.get("grounding_used"):
+    if result is None or len(ai_df) != n or not (result.get("grounding_used") or research_grounding_used):
         raise RuntimeError(
             "Gemini no devolvió una cartera válida tras varios reintentos. "
             "Se requieren exactamente 8 iniciativas generadas por IA con búsqueda web confirmada. "
