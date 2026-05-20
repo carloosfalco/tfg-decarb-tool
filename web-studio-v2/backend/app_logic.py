@@ -24,6 +24,11 @@ ELECTRICITY_GRID_FACTORS_DB_PATH = DATA_DIR / "electricity_grid_factors_es.csv"
 
 DEFAULT_INVENTORY_YEAR = 2025
 GENERIC_MARKET_SUPPLIER_NAME = "Factor market-based genérico (comercializadora no identificada)"
+GENERIC_MARKET_MIX_WITHOUT_GDO_KG_KWH = {
+    2023: 0.260,
+    2024: 0.283,
+    2025: 0.258,
+}
 
 REQUIRED_COLUMNS = [
     "id",
@@ -301,11 +306,8 @@ def get_supplier_factor(year: int, supplier_name: str) -> Tuple[Optional[float],
     df = load_supplier_factors()
     norm = normalize_name(supplier_name)
     if norm == normalize_name(GENERIC_MARKET_SUPPLIER_NAME):
-        year_df = df[df["year"] == year]
-        if year_df.empty:
-            return None, None
-        factor = float(year_df["factor_kg_co2e_kwh"].mean())
-        return factor, GENERIC_MARKET_SUPPLIER_NAME
+        factor = GENERIC_MARKET_MIX_WITHOUT_GDO_KG_KWH.get(year)
+        return (factor, GENERIC_MARKET_SUPPLIER_NAME) if factor is not None else (None, None)
     match = df[(df["year"] == year) & (df["supplier_name_norm"] == norm)]
     if match.empty:
         year_df = df[df["year"] == year].copy()
@@ -399,12 +401,15 @@ def list_electricity_suppliers(year: int) -> List[Dict[str, Any]]:
         columns={"supplier_name": "name"}
     ).to_dict(orient="records")
     if not filtered.empty:
-        generic_factor = float(filtered["factor_kg_co2e_kwh"].mean())
-        return [
+        generic_factor = GENERIC_MARKET_MIX_WITHOUT_GDO_KG_KWH.get(year)
+        generic_item = [] if generic_factor is None else [
             {
                 "name": GENERIC_MARKET_SUPPLIER_NAME,
                 "factor_kg_co2e_kwh": generic_factor,
-            },
+            }
+        ]
+        return [
+            *generic_item,
             *items,
         ]
     return items

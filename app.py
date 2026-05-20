@@ -117,6 +117,7 @@ CNMC_ELECTRICITY_FACTORS = {
     },
     # Generic supplier factor when no specific supplier data available
     "generic_supplier_t_per_mwh": {
+        2023: 0.260,
         2024: 0.283,
         2025: 0.258,
     },
