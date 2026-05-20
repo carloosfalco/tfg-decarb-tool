@@ -196,7 +196,8 @@ def generate_pestel(payload: GeneratePestelRequest) -> ApiEnvelope:
             except Exception as exc:
                 message = str(exc)
                 errors.append(f"{candidate_model}: {message}")
-                if "429" not in message:
+                retryable = any(marker in message for marker in ["429", "503", "high demand", "temporarily unavailable"])
+                if not retryable:
                     raise
         else:
             raise RuntimeError("No se pudo generar PESTEL con IA. " + " | ".join(errors))
@@ -245,7 +246,8 @@ def generate_ai_initiatives_endpoint(payload: GenerateAiInitiativesRequest) -> A
             except Exception as exc:
                 message = str(exc)
                 errors.append(f"{candidate_model}: {message}")
-                if "429" not in message:
+                retryable = any(marker in message for marker in ["429", "503", "high demand", "temporarily unavailable"])
+                if not retryable:
                     raise
         else:
             raise RuntimeError("No se pudieron generar iniciativas con IA. " + " | ".join(errors))

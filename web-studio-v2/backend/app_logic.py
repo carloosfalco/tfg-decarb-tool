@@ -1520,7 +1520,7 @@ def generate_ai_initiatives(
         api_key,
         model,
         "generación de iniciativas de descarbonización",
-        require_web_research=True,
+        require_web_research=False,
     )
     pestel_context = {
         str(category): [str(item) for item in items if str(item).strip()]
@@ -1618,7 +1618,7 @@ def generate_ai_initiatives(
             )
             initiative_rows = _extract_initiative_list(result["data"])
             ai_df = finalize_initiatives(pd.DataFrame(initiative_rows), company, n=n)
-            if len(ai_df) == n and (result.get("grounding_used") or research_grounding_used):
+            if len(ai_df) == n:
                 break
             errors.append(
                 f"Intento {attempt}: Gemini devolvió {len(ai_df)} iniciativas "
@@ -1636,10 +1636,10 @@ def generate_ai_initiatives(
             f"La respuesta debe empezar por '[' y terminar por ']'. Debe contener exactamente {n} iniciativas "
             "distintas y completas. No devuelvas menos filas ni texto fuera del JSON.\n"
         )
-    if result is None or len(ai_df) != n or not (result.get("grounding_used") or research_grounding_used):
+    if result is None or len(ai_df) != n:
         raise RuntimeError(
             "Gemini no devolvió una cartera válida tras varios reintentos. "
-            "Se requieren exactamente 8 iniciativas generadas por IA con búsqueda web confirmada. "
+            f"Se requieren exactamente {n} iniciativas generadas por IA. "
             + " | ".join(errors)
         )
     return {
