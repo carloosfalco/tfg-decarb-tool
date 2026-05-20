@@ -140,7 +140,7 @@ export function Scope2Form({
 
       {value.electricity_method === "market" ? (
         <>
-          <div className="row-header scope-section-header scope-section-header--market">
+          <div className="row-header">
             <div>
               <h3>Comercializadoras</h3>
               <p className="muted">
