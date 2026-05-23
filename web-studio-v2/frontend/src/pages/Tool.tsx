@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Download } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   calculateFootprint,
@@ -18,6 +19,7 @@ import { InitiativesTable } from "../components/portfolio/InitiativesTable";
 import { ReportExportPanel } from "../components/reports/ReportExportPanel";
 import { FootprintOverview } from "../components/results/FootprintOverview";
 import { PestelGrid } from "../components/results/PestelGrid";
+import { downloadCarbonReportPdf } from "../reports/carbonReportPdf";
 import { useAppDispatch, useAppState } from "../store/AppState";
 import type { CatalogItem, StepId, StepStatus } from "../types";
 
@@ -34,6 +36,7 @@ export default function Tool() {
   const [appError, setAppError] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState<"pestel" | "initiatives" | null>(null);
   const [portfolioLoading, setPortfolioLoading] = useState(false);
+  const hasAnyReportData = Boolean(state.footprint || state.pestel || state.initiatives.length || state.portfolioResult);
 
   useEffect(() => {
     let cancelled = false;
@@ -207,6 +210,16 @@ export default function Tool() {
                 Supuestos financieros
               </button>
             ) : null}
+            <button
+              className="button button--primary"
+              type="button"
+              disabled={!hasAnyReportData}
+              onClick={() => downloadCarbonReportPdf(state)}
+              title={hasAnyReportData ? "Exportar informe PDF" : "Genera datos antes de exportar el informe"}
+            >
+              <Download size={18} />
+              Informe PDF
+            </button>
           </div>
         </header>
 
