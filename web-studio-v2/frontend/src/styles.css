@@ -2591,6 +2591,13 @@ table th {
   font-weight: 800;
 }
 
+.chart-legend-label {
+  color: var(--muted-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 1280px) {
   .app-shell {
     grid-template-columns: 1fr;

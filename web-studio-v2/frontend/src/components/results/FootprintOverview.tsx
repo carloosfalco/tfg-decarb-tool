@@ -1,5 +1,6 @@
 import {
   Cell,
+  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -51,14 +52,19 @@ export function FootprintOverview({ footprint }: { footprint: FootprintResult | 
 
       <div className="chart-grid chart-grid--results">
         <article className="panel">
-          <h3>Desglose por fuente</h3>
-          <ResponsiveContainer width="100%" height={260}>
+          <h3>Desglose por fuente (tCO2e/año)</h3>
+          <ResponsiveContainer width="100%" height={300}>
             <PieChart>
-              <Pie data={breakdown} dataKey="value" nameKey="name" innerRadius={65} outerRadius={92}>
+              <Pie data={breakdown} dataKey="value" nameKey="name" innerRadius={65} outerRadius={92} cy="42%">
                 {breakdown.map((entry, index) => (
                   <Cell key={entry.name} fill={colors[index % colors.length]} />
                 ))}
               </Pie>
+              <Legend
+                iconType="circle"
+                verticalAlign="bottom"
+                formatter={(value: string) => <span className="chart-legend-label">{value}</span>}
+              />
               <Tooltip formatter={(value: number) => `${value.toFixed(2)} tCO2e`} />
             </PieChart>
           </ResponsiveContainer>
