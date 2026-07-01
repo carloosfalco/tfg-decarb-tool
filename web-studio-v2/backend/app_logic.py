@@ -892,7 +892,10 @@ def _gemini_repair_json(api_key: str, model_name: str, raw_text: str, json_shape
     try:
         response = requests.post(url, json=payload, timeout=60)
     except requests.RequestException as exc:
-        raise RuntimeError(f"Gemini investigó, pero no se pudo convertir la respuesta a JSON: {exc}") from exc
+        raise RuntimeError(
+            "Gemini investigó, pero no se pudo convertir la respuesta a JSON. "
+            f"Detalle técnico: {exc.__class__.__name__}"
+        ) from exc
     if response.status_code >= 400:
         raise RuntimeError(
             "Gemini investigó, pero falló la conversión a JSON. "
@@ -937,14 +940,14 @@ def _gemini_generate_json(
     try:
         response = requests.post(url, json=payload, timeout=90)
     except requests.RequestException as exc:
-        raise RuntimeError(f"No se pudo conectar con Gemini: {exc}") from exc
+        raise RuntimeError(f"No se pudo conectar con Gemini. Detalle técnico: {exc.__class__.__name__}") from exc
     if response.status_code >= 400 and use_web_research and not require_web_research and response.status_code != 429:
         payload.pop("tools", None)
         web_tool_enabled = False
         try:
             response = requests.post(url, json=payload, timeout=90)
         except requests.RequestException as exc:
-            raise RuntimeError(f"No se pudo conectar con Gemini: {exc}") from exc
+            raise RuntimeError(f"No se pudo conectar con Gemini. Detalle técnico: {exc.__class__.__name__}") from exc
     if response.status_code >= 400:
         detail = response.text[:1200]
         try:
