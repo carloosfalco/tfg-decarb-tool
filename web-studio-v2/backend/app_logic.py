@@ -63,6 +63,37 @@ NUMERIC_COLUMNS = [
     "co2_adjusted_t",
 ]
 
+COLUMN_ALIASES = {
+    "alcance": "scope",
+    "fuente_emision": "emission_source",
+    "fuente_de_emision": "emission_source",
+    "familia": "initiative_family",
+    "familia_iniciativa": "initiative_family",
+    "iniciativa": "initiative",
+    "nombre": "initiative",
+    "name": "initiative",
+    "medida": "initiative",
+    "accion": "initiative",
+    "titulo": "initiative",
+    "title": "initiative",
+    "descripcion": "initiative",
+    "description": "initiative",
+    "capex": "capex_eur",
+    "inversion": "capex_eur",
+    "coste_inversion": "capex_eur",
+    "ahorro_opex_anual": "annual_opex_saving_eur",
+    "ahorro_anual_eur": "annual_opex_saving_eur",
+    "reduccion_co2_anual": "annual_co2_reduction_t",
+    "reduccion_anual_co2": "annual_co2_reduction_t",
+    "reduccion_tco2e_anual": "annual_co2_reduction_t",
+    "co2_reduction_t": "annual_co2_reduction_t",
+    "meses_implementacion": "implementation_months",
+    "plazo_meses": "implementation_months",
+    "score_estrategico": "strategic_score_1_5",
+    "puntuacion_estrategica": "strategic_score_1_5",
+    "unidad_actividad": "activity_unit",
+}
+
 STATIONARY_FUEL_MWH_PER_UNIT = {
     "Gasóleo C": 0.0099,
     "Gasóleo B": 0.0099,
@@ -977,6 +1008,7 @@ def _gemini_generate_json(
         parsed_data = _gemini_repair_json(api_key, model_name, text, json_shape_hint)
     return {
         "data": parsed_data,
+        "raw_text": text,
         "grounding_used": grounding_used,
         "web_research_requested": web_tool_enabled,
         "grounding_queries": grounding_queries,
@@ -1045,26 +1077,91 @@ def _build_ai_web_research_context(
         }
 
 
-def _extract_initiative_list(data: Any) -> List[Dict[str, Any]]:
-    if isinstance(data, dict):
-        for key in [
-            "initiatives",
-            "iniciativas",
-            "items",
-            "data",
-            "portfolio",
-            "cartera",
-            "initiatives_final",
-            "final_initiatives",
-            "medidas",
-        ]:
-            value = data.get(key)
-            if isinstance(value, list):
-                data = value
-                break
+INITIATIVE_CONTAINER_KEYS = {
+    "initiatives",
+    "iniciativas",
+    "items",
+    "data",
+    "portfolio",
+    "cartera",
+    "initiatives_final",
+    "final_initiatives",
+    "medidas",
+    "acciones",
+    "recommendations",
+    "recomendaciones",
+}
+
+
+INITIATIVE_FIELD_KEYS = {
+    "id",
+    "scope",
+    "alcance",
+    "emission_source",
+    "fuente_emision",
+    "initiative_family",
+    "familia",
+    "initiative",
+    "iniciativa",
+    "medida",
+    "nombre",
+    "descripcion",
+    "description",
+    "capex_eur",
+    "capex",
+    "annual_opex_saving_eur",
+    "annual_co2_reduction_t",
+    "implementation_months",
+    "strategic_score_1_5",
+}
+
+
+def _looks_like_initiative_dict(item: Dict[str, Any]) -> bool:
+    keys = {_normalize_key(key) for key in item.keys()}
+    return bool(keys & INITIATIVE_FIELD_KEYS)
+
+
+def _rows_from_possible_initiative_list(data: Any, from_container_key: bool = False) -> Optional[List[Dict[str, Any]]]:
     if not isinstance(data, list):
-        raise RuntimeError("La salida de Gemini para iniciativas debe ser una lista JSON.")
-    return [item for item in data if isinstance(item, dict)]
+        return None
+    dict_rows = [item for item in data if isinstance(item, dict)]
+    if dict_rows and (from_container_key or any(_looks_like_initiative_dict(item) for item in dict_rows)):
+        return dict_rows
+    if from_container_key:
+        text_rows = [str(item).strip() for item in data if str(item).strip()]
+        if text_rows:
+            return [{"initiative": text} for text in text_rows]
+    return None
+
+
+def _extract_initiative_list(data: Any) -> List[Dict[str, Any]]:
+    def walk(node: Any, from_container_key: bool = False, depth: int = 0) -> Optional[List[Dict[str, Any]]]:
+        if depth > 6:
+            return None
+        rows = _rows_from_possible_initiative_list(node, from_container_key=from_container_key)
+        if rows is not None:
+            return rows
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if _normalize_key(key) in INITIATIVE_CONTAINER_KEYS:
+                    found = walk(value, from_container_key=True, depth=depth + 1)
+                    if found is not None:
+                        return found
+            for value in node.values():
+                found = walk(value, from_container_key=False, depth=depth + 1)
+                if found is not None:
+                    return found
+        if isinstance(node, list):
+            for item in node:
+                found = walk(item, from_container_key=False, depth=depth + 1)
+                if found is not None:
+                    return found
+        return None
+
+    rows = walk(data, from_container_key=isinstance(data, list))
+    if rows is None:
+        raise RuntimeError("La salida de Gemini para iniciativas debe contener una lista JSON de iniciativas.")
+    return rows
 
 
 def generate_ai_pestel(company: Dict[str, Any], footprint: Dict[str, Any], api_key: str, model: str) -> Dict[str, Any]:
@@ -1214,7 +1311,10 @@ def generate_ai_pestel(company: Dict[str, Any], footprint: Dict[str, Any], api_k
 
 def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    df.columns = [str(col).strip().lower() for col in df.columns]
+    df.columns = [_normalize_key(str(col).strip()) for col in df.columns]
+    for source_col, target_col in COLUMN_ALIASES.items():
+        if source_col in df.columns and target_col not in df.columns:
+            df[target_col] = df[source_col]
     return df
 
 
@@ -1641,7 +1741,7 @@ def generate_ai_initiatives(
             ai_df = finalize_initiatives(pd.DataFrame(initiative_rows), company, n=n)
             if len(ai_df) == n:
                 break
-            if 0 < len(ai_df) < n:
+            if len(ai_df) < n:
                 missing = n - len(ai_df)
                 completion_prompt = (
                     "Completa una cartera de iniciativas de descarbonizacion con benchmarking web.\n"
