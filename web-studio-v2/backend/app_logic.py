@@ -900,6 +900,7 @@ def _gemini_generate_json(
     }
     if not use_web_research:
         payload["generationConfig"]["responseMimeType"] = "application/json"
+    web_tool_enabled = bool(use_web_research)
     if use_web_research:
         payload["tools"] = [{"google_search": {}}]
     try:
@@ -908,6 +909,7 @@ def _gemini_generate_json(
         raise RuntimeError(f"No se pudo conectar con Gemini: {exc}") from exc
     if response.status_code >= 400 and use_web_research and not require_web_research and response.status_code != 429:
         payload.pop("tools", None)
+        web_tool_enabled = False
         try:
             response = requests.post(url, json=payload, timeout=90)
         except requests.RequestException as exc:
@@ -945,17 +947,23 @@ def _gemini_generate_json(
             "Gemini devolvió texto vacío"
             + (f" (finishReason={finish_reason})." if finish_reason else ".")
         )
-    grounding = candidate.get("groundingMetadata") or {}
-    grounding_queries = [str(item) for item in grounding.get("webSearchQueries", []) if str(item).strip()]
-    grounding_chunks = grounding.get("groundingChunks", []) or []
+    grounding = candidate.get("groundingMetadata") or candidate.get("grounding_metadata") or {}
+    grounding_queries = [
+        str(item)
+        for item in (grounding.get("webSearchQueries") or grounding.get("web_search_queries") or [])
+        if str(item).strip()
+    ]
+    grounding_chunks = grounding.get("groundingChunks") or grounding.get("grounding_chunks") or []
+    grounding_supports = grounding.get("groundingSupports") or grounding.get("grounding_supports") or []
+    search_entry_point = grounding.get("searchEntryPoint") or grounding.get("search_entry_point") or {}
     grounding_sources: List[Dict[str, str]] = []
     for chunk in grounding_chunks:
-        web = chunk.get("web") or {}
-        uri = str(web.get("uri") or "").strip()
+        web = chunk.get("web") or chunk.get("retrievedContext") or chunk.get("retrieved_context") or {}
+        uri = str(web.get("uri") or web.get("url") or "").strip()
         title = str(web.get("title") or "").strip()
         if uri:
             grounding_sources.append({"uri": uri, "title": title})
-    grounding_used = bool(grounding_queries or grounding_sources)
+    grounding_used = bool(grounding_queries or grounding_sources or grounding_supports or search_entry_point)
     if require_web_research and not grounding_used:
         raise RuntimeError(
             "Gemini generó contenido, pero no confirmó búsqueda web. "
@@ -970,6 +978,7 @@ def _gemini_generate_json(
     return {
         "data": parsed_data,
         "grounding_used": grounding_used,
+        "web_research_requested": web_tool_enabled,
         "grounding_queries": grounding_queries,
         "grounding_sources": grounding_sources,
     }
@@ -1038,7 +1047,17 @@ def _build_ai_web_research_context(
 
 def _extract_initiative_list(data: Any) -> List[Dict[str, Any]]:
     if isinstance(data, dict):
-        for key in ["initiatives", "iniciativas", "items", "data"]:
+        for key in [
+            "initiatives",
+            "iniciativas",
+            "items",
+            "data",
+            "portfolio",
+            "cartera",
+            "initiatives_final",
+            "final_initiatives",
+            "medidas",
+        ]:
             value = data.get(key)
             if isinstance(value, list):
                 data = value
@@ -1563,7 +1582,7 @@ def generate_ai_initiatives(
         "Si la base cuantitativa es insuficiente, usa null antes que inventar."
     )
     user_prompt = (
-        "Genera exactamente N iniciativas en JSON (lista de objetos) siguiendo este esquema. "
+        f"Genera exactamente {n} iniciativas en JSON (lista de objetos) siguiendo este esquema. "
         "Usa los inputs de la empresa, el contexto estructurado y supuestos conservadores. "
         "Cada iniciativa debe incluir TODAS las columnas requeridas y opcionales. "
         "Para 'scope' usa 'Alcance 1' o 'Alcance 2'. "
@@ -1589,6 +1608,8 @@ def generate_ai_initiatives(
         "- Los meses de implementación deben reflejar complejidad real: quick wins, proyectos de ingeniería, permisos, obra e integración.\n"
         "- Devuelve únicamente los campos definidos en SCHEMA.\n\n"
         f"N = {n}\n"
+        f"CONTRATO_DE_SALIDA: usa busqueda web para benchmarking y devuelve una lista JSON directa con exactamente {n} objetos; "
+        "el primer caracter debe ser '[' y el ultimo ']'. No uses markdown, comentarios ni objeto contenedor.\n"
         f"SCHEMA: {json.dumps(schema_note, ensure_ascii=False)}\n"
         f"WEB_RESEARCH_CONTEXT: {json.dumps(research.get('data', {}), ensure_ascii=False)}\n"
         f"COMPANY_CONTEXT: {json.dumps(context, ensure_ascii=False)}\n"
@@ -1620,6 +1641,53 @@ def generate_ai_initiatives(
             ai_df = finalize_initiatives(pd.DataFrame(initiative_rows), company, n=n)
             if len(ai_df) == n:
                 break
+            if 0 < len(ai_df) < n:
+                missing = n - len(ai_df)
+                completion_prompt = (
+                    "Completa una cartera de iniciativas de descarbonizacion con benchmarking web.\n"
+                    f"Ya hay {len(ai_df)} iniciativas validas, pero se requieren exactamente {n}. "
+                    f"Realiza busqueda web adicional de benchmarking y devuelve SOLO una lista JSON con exactamente {missing} "
+                    "iniciativas NUEVAS, distintas de las ya existentes y compatibles con la empresa. "
+                    "No repitas medidas, no uses markdown y no incluyas objeto contenedor. "
+                    "El primer caracter debe ser '[' y el ultimo ']'.\n\n"
+                    f"SCHEMA: {json.dumps(schema_note, ensure_ascii=False)}\n"
+                    f"WEB_RESEARCH_CONTEXT: {json.dumps(research.get('data', {}), ensure_ascii=False)}\n"
+                    f"COMPANY_CONTEXT: {json.dumps(context, ensure_ascii=False)}\n"
+                    f"EMISSIONS_INPUT_CONTEXT: {json.dumps(emissions_context, ensure_ascii=False)}\n"
+                    f"PESTEL_CONTEXT: {json.dumps(pestel_context, ensure_ascii=False)}\n"
+                    f"COMPANY_INPUTS: {json.dumps(company, ensure_ascii=False)}\n"
+                    f"FOOTPRINT: {json.dumps(footprint, ensure_ascii=False)}\n"
+                    f"INICIATIVAS_YA_EXISTENTES: {json.dumps(initiative_rows, ensure_ascii=False)}\n"
+                )
+                try:
+                    completion = _gemini_generate_json(
+                        api_key,
+                        model,
+                        system_prompt,
+                        completion_prompt,
+                        use_web_research=True,
+                        require_web_research=False,
+                        json_shape_hint=json_shape_hint,
+                    )
+                    completion_rows = _extract_initiative_list(completion["data"])
+                    merged_rows = [*initiative_rows, *completion_rows]
+                    ai_df = finalize_initiatives(pd.DataFrame(merged_rows), company, n=n)
+                    result = {
+                        **result,
+                        "grounding_used": bool(result.get("grounding_used") or completion.get("grounding_used")),
+                        "grounding_queries": [
+                            *result.get("grounding_queries", []),
+                            *completion.get("grounding_queries", []),
+                        ],
+                        "grounding_sources": [
+                            *result.get("grounding_sources", []),
+                            *completion.get("grounding_sources", []),
+                        ],
+                    }
+                    if len(ai_df) == n:
+                        break
+                except Exception as completion_exc:
+                    errors.append(f"Intento {attempt} completado fallido: {completion_exc}")
             errors.append(
                 f"Intento {attempt}: Gemini devolvió {len(ai_df)} iniciativas "
                 f"y grounding_used={bool(result.get('grounding_used') or research_grounding_used)}."
@@ -1627,6 +1695,8 @@ def generate_ai_initiatives(
             retry_reason = f"devolvió {len(ai_df)} iniciativas y se necesitan exactamente {n}"
         except Exception as exc:
             errors.append(f"Intento {attempt}: {exc}")
+            if "429" in str(exc) or "quota" in str(exc).lower():
+                raise
             retry_reason = f"no devolvió una lista JSON válida ({exc})"
         retry_note = (
             "\n\nREINTENTO OBLIGATORIO:\n"
