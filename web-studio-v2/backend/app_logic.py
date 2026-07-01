@@ -1727,6 +1727,7 @@ def generate_ai_initiatives(
     retry_note = ""
     json_shape_hint = '[{"id":"I1","initiative":"...","scope":"Alcance 1","emission_source":"...","initiative_family":"...","categoria":"quick_win","capex_eur":0,"annual_opex_saving_eur":0,"annual_co2_reduction_t":0,"co2_adjusted_t":0,"implementation_months":0,"strategic_score_1_5":3,"activity_unit":"..."}]'
     errors: List[str] = []
+    raw_generation_texts: List[str] = []
     research_grounding_used = bool(research.get("grounding_used"))
     for attempt in range(1, 4):
         attempt_prompt = user_prompt + retry_note
@@ -1740,6 +1741,8 @@ def generate_ai_initiatives(
                 require_web_research=False,
                 json_shape_hint=json_shape_hint,
             )
+            if str(result.get("raw_text") or "").strip():
+                raw_generation_texts.append(str(result.get("raw_text")))
             initiative_rows = _extract_initiative_list(result["data"])
             ai_df = finalize_initiatives(pd.DataFrame(initiative_rows), company, n=n)
             if len(ai_df) == n:
@@ -1772,6 +1775,8 @@ def generate_ai_initiatives(
                         require_web_research=False,
                         json_shape_hint=json_shape_hint,
                     )
+                    if str(completion.get("raw_text") or "").strip():
+                        raw_generation_texts.append(str(completion.get("raw_text")))
                     completion_rows = _extract_initiative_list(completion["data"])
                     merged_rows = [*initiative_rows, *completion_rows]
                     ai_df = finalize_initiatives(pd.DataFrame(merged_rows), company, n=n)
@@ -1809,6 +1814,51 @@ def generate_ai_initiatives(
             f"La respuesta debe empezar por '[' y terminar por ']'. Debe contener exactamente {n} iniciativas "
             "distintas y completas. No devuelvas menos filas ni texto fuera del JSON.\n"
         )
+    if result is not None and len(ai_df) != n and bool(result.get("grounding_used") or research.get("grounding_used")):
+        try:
+            synthesis_prompt = (
+                "Sintetiza la cartera final de iniciativas usando SOLO el material investigado con busqueda web "
+                "y los datos estructurados. No inventes hechos nuevos fuera del contexto dado.\n"
+                f"Devuelve una lista JSON directa con exactamente {n} objetos completos. "
+                "No uses markdown, no incluyas texto fuera del JSON y no uses objeto contenedor.\n\n"
+                f"SCHEMA: {json.dumps(schema_note, ensure_ascii=False)}\n"
+                f"WEB_RESEARCH_CONTEXT: {json.dumps(research.get('data', {}), ensure_ascii=False)}\n"
+                f"GROUNDING_QUERIES: {json.dumps(list(dict.fromkeys([*research.get('grounding_queries', []), *result.get('grounding_queries', [])])), ensure_ascii=False)}\n"
+                f"GROUNDING_SOURCES: {json.dumps([*research.get('grounding_sources', []), *result.get('grounding_sources', [])], ensure_ascii=False)}\n"
+                f"TEXTOS_GENERADOS_CON_BUSQUEDA_WEB: {json.dumps(raw_generation_texts[-6:], ensure_ascii=False)}\n"
+                f"COMPANY_CONTEXT: {json.dumps(context, ensure_ascii=False)}\n"
+                f"EMISSIONS_INPUT_CONTEXT: {json.dumps(emissions_context, ensure_ascii=False)}\n"
+                f"PESTEL_CONTEXT: {json.dumps(pestel_context, ensure_ascii=False)}\n"
+                f"COMPANY_INPUTS: {json.dumps(company, ensure_ascii=False)}\n"
+                f"FOOTPRINT: {json.dumps(footprint, ensure_ascii=False)}\n"
+            )
+            synthesis = _gemini_generate_json(
+                api_key,
+                model,
+                system_prompt,
+                synthesis_prompt,
+                use_web_research=False,
+                require_web_research=False,
+                json_shape_hint=json_shape_hint,
+            )
+            synthesis_rows = _extract_initiative_list(synthesis["data"])
+            ai_df = finalize_initiatives(pd.DataFrame(synthesis_rows), company, n=n)
+            result = {
+                **result,
+                "grounding_used": True,
+                "grounding_queries": [
+                    *result.get("grounding_queries", []),
+                    *synthesis.get("grounding_queries", []),
+                ],
+                "grounding_sources": [
+                    *result.get("grounding_sources", []),
+                    *synthesis.get("grounding_sources", []),
+                ],
+            }
+            if len(ai_df) != n:
+                errors.append(f"Sintesis final: Gemini devolvio {len(ai_df)} iniciativas y se necesitan exactamente {n}.")
+        except Exception as synthesis_exc:
+            errors.append(f"Sintesis final fallida: {synthesis_exc}")
     if result is None or len(ai_df) != n:
         raise RuntimeError(
             "Gemini no devolvió una cartera válida tras varios reintentos. "
