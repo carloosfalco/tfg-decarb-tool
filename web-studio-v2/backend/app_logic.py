@@ -147,6 +147,17 @@ MEASURE_LABELS = [
     "Programa de fugas de aire comprimido",
 ]
 
+IMPLEMENTED_MEASURE_BLOCKLIST = {
+    "LED": ["led", "iluminacion", "lighting", "luminaria"],
+    "GdO": ["gdo", "garantia de origen", "garantias de origen", "energia renovable certificada"],
+    "Paneles solares": ["panel solar", "paneles solares", "fotovolta", "autoconsumo", "solar pv", "cubierta solar"],
+    "Flota electrica": ["flota electr", "vehiculo electr", "vehiculos electr", "recarga", "ev"],
+    "Variadores de frecuencia": ["variador", "vfd", "frecuencia", "velocidad variable"],
+    "EMS/submetering": ["ems", "submetering", "submedicion", "monitorizacion energetica", "medicion energetica"],
+    "Recuperacion de calor": ["recuperacion de calor", "calor residual", "waste heat"],
+    "Programa de fugas de aire comprimido": ["fugas de aire", "aire comprimido", "compressed air leak"],
+}
+
 
 def _normalize_key(text: str) -> str:
     return (
@@ -1331,12 +1342,59 @@ def coerce_numeric(df: pd.DataFrame) -> pd.DataFrame:
 
 def _implemented_status(company: Dict[str, Any], label: str) -> str:
     implemented = company.get("implemented_measures") or {}
-    raw = str(implemented.get(label, "No")).strip().lower()
-    if raw in {"sí", "si", "yes", "true", "1"}:
+    raw = _normalize_key(_repair_mojibake(str(implemented.get(label, "No"))))
+    if raw in {"si", "yes", "true", "1"}:
         return "yes"
     if raw in {"parcial", "partial"}:
         return "partial"
     return "no"
+
+
+def implemented_measure_blocklist(company: Dict[str, Any]) -> Dict[str, List[str]]:
+    implemented = company.get("implemented_measures") or {}
+    blocked: Dict[str, List[str]] = {}
+    normalized_catalog = {_normalize_key(label): label for label in IMPLEMENTED_MEASURE_BLOCKLIST}
+    for raw_label, raw_status in implemented.items():
+        status = _normalize_key(_repair_mojibake(str(raw_status or "No")))
+        if status not in {"si", "yes", "true", "1"}:
+            continue
+        normalized_label = _normalize_key(_repair_mojibake(str(raw_label)))
+        catalog_label = normalized_catalog.get(normalized_label)
+        if catalog_label:
+            blocked[catalog_label] = IMPLEMENTED_MEASURE_BLOCKLIST[catalog_label]
+    return blocked
+
+
+def filter_implemented_initiatives(df: pd.DataFrame, company: Dict[str, Any]) -> pd.DataFrame:
+    blocked = implemented_measure_blocklist(company)
+    if df.empty or not blocked:
+        return df
+
+    keep_rows = []
+    for _, row in df.iterrows():
+        haystack = _normalize_key(
+            _repair_mojibake(
+                " ".join(
+                    str(row.get(col, "") or "")
+                    for col in ["initiative", "nombre", "initiative_family", "emission_source", "activity_unit", "thematic_bucket"]
+                )
+            )
+        )
+        is_blocked = any(
+            _normalize_key(keyword) in haystack
+            for keywords in blocked.values()
+            for keyword in keywords
+        )
+        if not is_blocked:
+            keep_rows.append(row)
+
+    if not keep_rows:
+        return df.iloc[0:0].copy()
+
+    out = pd.DataFrame(keep_rows).reset_index(drop=True)
+    for idx in out.index:
+        out.at[idx, "id"] = int(idx) + 1
+    return out
 
 
 def classify_initiative_category(row: pd.Series) -> str:
@@ -1650,6 +1708,7 @@ def generate_ai_initiatives(
         if isinstance(items, list) and any(str(item).strip() for item in items)
     }
     has_pestel_context = bool(pestel_context)
+    blocked_implemented = implemented_measure_blocklist(company)
     use_web_research = True
     schema_note = {
         "required_columns": REQUIRED_COLUMNS,
@@ -1680,6 +1739,7 @@ def generate_ai_initiatives(
         "Cada iniciativa debe nacer de una conexión clara entre hallazgos externos, datos de huella y viabilidad operativa; evita listas estándar de medidas. "
         "Si se facilita PESTEL_CONTEXT, trátalo como contexto estratégico previo: úsalo para convertir riesgos, oportunidades, presiones regulatorias, tendencias tecnológicas, mercado, cadena de suministro y aspectos sociales/legales en iniciativas concretas. "
         "No repitas el PESTEL: traduce sus implicaciones en medidas implantables, supuestos de CAPEX/OPEX y prioridades. "
+        "Respeta estrictamente las medidas ya implantadas por el usuario: si una medida aparece como implantada con estado 'Sí', queda prohibido proponerla, reformularla, ampliarla, optimizarla o sustituirla por una variante equivalente. "
         "Cuando estimes CAPEX, ahorro OPEX, reducción CO2 e implementación, usa lógica dimensional y de orden de magnitud realista para ese tipo de empresa. "
         "Ten en cuenta tamaño energético, consumos, combustibles, flota, cubierta disponible, calor comprado, calor de proceso si se deduce, restricciones de implantación y presupuesto. "
         "Si la base cuantitativa es insuficiente, usa null antes que inventar."
@@ -1689,7 +1749,8 @@ def generate_ai_initiatives(
         "Usa los inputs de la empresa, el contexto estructurado y supuestos conservadores. "
         "Cada iniciativa debe incluir TODAS las columnas requeridas y opcionales. "
         "Para 'scope' usa 'Alcance 1' o 'Alcance 2'. "
-        "No propongas iniciativas ya implantadas (salvo si se pide explícitamente ampliación cuando son parciales). "
+        "No propongas iniciativas ya implantadas. Si una medida figura como 'Sí' en MEDIDAS_YA_IMPLANTADAS_BLOQUEADAS, queda completamente excluida: no propongas ampliación, sustitución, mejora, optimización, mantenimiento, monitorización específica ni variantes con otro nombre. "
+        "Solo puedes proponer ampliación si el estado recibido fuera 'Parcial'; con estado 'Sí' está prohibido. "
         "Primero busca información pública sobre la empresa y su ubicación si la herramienta de búsqueda está disponible. "
         "Usa el nombre de la empresa, la provincia, el código postal, el sector y todos los datos operativos para entender actividad, productos/servicios, procesos, plantas, logística, suministro energético y contexto industrial local, "
         "pero no inventes detalles no verificables ni cifras específicas.\n"
@@ -1699,6 +1760,8 @@ def generate_ai_initiatives(
         "- Si PESTEL_CONTEXT no está vacío, usa sus conclusiones para ajustar la selección, prioridad y estimaciones de las iniciativas; por ejemplo, riesgos energéticos, regulación local, ayudas, IA/digitalización, logística, retail/industria, cadena de suministro o actividad específica de la empresa.\n"
         "- Contrasta el PESTEL con FOOTPRINT y EMISSIONS_INPUT_CONTEXT: una oportunidad externa solo debe generar una iniciativa si tiene encaje con las fuentes emisoras reales o con datos operativos plausibles.\n"
         "- Relaciona las iniciativas con las fuentes emisoras reales observadas en combustión fija, flota, refrigerantes, electricidad y calor/vapor comprado.\n"
+        "- Filtro obligatorio de medidas implantadas: antes de responder, elimina cualquier propuesta cuyo nombre, familia, fuente, unidad o descripción coincida semánticamente con MEDIDAS_YA_IMPLANTADAS_BLOQUEADAS.\n"
+        "- Ejemplos de bloqueo: si 'Paneles solares' está implantado, no propongas fotovoltaica, autoconsumo, ampliación solar ni cubiertas solares; si 'GdO' está implantado, no propongas garantías de origen ni electricidad certificada; si 'LED' está implantado, no propongas relamping ni iluminación eficiente.\n"
         f"- Debe haber exactamente {n} iniciativas finales.\n"
         "- Clasifica cada iniciativa como quick_win o estrategica.\n"
         "- Favorece estrategica frente a quick_win: usa peso 1.0 para estrategica y 0.4 para quick_win.\n"
@@ -1713,6 +1776,7 @@ def generate_ai_initiatives(
         f"N = {n}\n"
         f"CONTRATO_DE_SALIDA: usa busqueda web para benchmarking y devuelve una lista JSON directa con exactamente {n} objetos; "
         "el primer caracter debe ser '[' y el ultimo ']'. No uses markdown, comentarios ni objeto contenedor.\n"
+        f"MEDIDAS_YA_IMPLANTADAS_BLOQUEADAS: {json.dumps(blocked_implemented, ensure_ascii=False)}\n"
         f"SCHEMA: {json.dumps(schema_note, ensure_ascii=False)}\n"
         f"WEB_RESEARCH_CONTEXT: {json.dumps(research.get('data', {}), ensure_ascii=False)}\n"
         f"COMPANY_CONTEXT: {json.dumps(context, ensure_ascii=False)}\n"
@@ -1745,6 +1809,7 @@ def generate_ai_initiatives(
                 raw_generation_texts.append(str(result.get("raw_text")))
             initiative_rows = _extract_initiative_list(result["data"])
             ai_df = finalize_initiatives(pd.DataFrame(initiative_rows), company, n=n)
+            ai_df = filter_implemented_initiatives(ai_df, company)
             if len(ai_df) == n:
                 break
             if len(ai_df) < n:
@@ -1756,6 +1821,7 @@ def generate_ai_initiatives(
                     "iniciativas NUEVAS, distintas de las ya existentes y compatibles con la empresa. "
                     "No repitas medidas, no uses markdown y no incluyas objeto contenedor. "
                     "El primer caracter debe ser '[' y el ultimo ']'.\n\n"
+                    f"MEDIDAS_YA_IMPLANTADAS_BLOQUEADAS: {json.dumps(blocked_implemented, ensure_ascii=False)}\n"
                     f"SCHEMA: {json.dumps(schema_note, ensure_ascii=False)}\n"
                     f"WEB_RESEARCH_CONTEXT: {json.dumps(research.get('data', {}), ensure_ascii=False)}\n"
                     f"COMPANY_CONTEXT: {json.dumps(context, ensure_ascii=False)}\n"
@@ -1780,6 +1846,7 @@ def generate_ai_initiatives(
                     completion_rows = _extract_initiative_list(completion["data"])
                     merged_rows = [*initiative_rows, *completion_rows]
                     ai_df = finalize_initiatives(pd.DataFrame(merged_rows), company, n=n)
+                    ai_df = filter_implemented_initiatives(ai_df, company)
                     result = {
                         **result,
                         "grounding_used": bool(result.get("grounding_used") or completion.get("grounding_used")),
@@ -1821,6 +1888,7 @@ def generate_ai_initiatives(
                 "y los datos estructurados. No inventes hechos nuevos fuera del contexto dado.\n"
                 f"Devuelve una lista JSON directa con exactamente {n} objetos completos. "
                 "No uses markdown, no incluyas texto fuera del JSON y no uses objeto contenedor.\n\n"
+                f"MEDIDAS_YA_IMPLANTADAS_BLOQUEADAS: {json.dumps(blocked_implemented, ensure_ascii=False)}\n"
                 f"SCHEMA: {json.dumps(schema_note, ensure_ascii=False)}\n"
                 f"WEB_RESEARCH_CONTEXT: {json.dumps(research.get('data', {}), ensure_ascii=False)}\n"
                 f"GROUNDING_QUERIES: {json.dumps(list(dict.fromkeys([*research.get('grounding_queries', []), *result.get('grounding_queries', [])])), ensure_ascii=False)}\n"
@@ -1843,6 +1911,7 @@ def generate_ai_initiatives(
             )
             synthesis_rows = _extract_initiative_list(synthesis["data"])
             ai_df = finalize_initiatives(pd.DataFrame(synthesis_rows), company, n=n)
+            ai_df = filter_implemented_initiatives(ai_df, company)
             result = {
                 **result,
                 "grounding_used": True,
